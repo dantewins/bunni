@@ -1,4 +1,3 @@
-import React from "react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Section, Container } from "@/components/ds";
 import { Badge } from "@/components/ui/badge";
@@ -49,8 +48,8 @@ const faqs: FAQItem[] = [
     },
 ];
 
-const FAQ: React.FC = () => (
-    <Section className="mt-20 sm:mt-40">
+const FAQ = () => (
+    <Section className="mt-20 sm:mt-40" id="faq">
         <Container className="flex flex-col gap-6">
             <Badge className="rounded-none w-fit text-sm sm:text-md p-1 px-2 sm:p-2 sm:px-4" variant="outline">
                 Frequently asked questions

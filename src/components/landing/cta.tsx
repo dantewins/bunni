@@ -3,9 +3,9 @@ import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Section, Container } from "@/components/ds";
 
-const CTA = () => {
+export default function CTA() {
     return (
-        <Section className="mt-40">
+        <Section className="mt-40" id="cta">
             <Container className="flex flex-col gap-6">
                 <Badge className="rounded-none w-fit text-sm sm:text-md p-1 px-2 sm:p-2 sm:px-4" variant="outline">
                     Explore
@@ -37,6 +37,4 @@ const CTA = () => {
             </Container>
         </Section>
     );
-};
-
-export default CTA;
+}

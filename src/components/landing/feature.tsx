@@ -43,57 +43,69 @@ const singleFeatureText: FeatureText[] = [
     },
 ];
 
-const Feature = () => (
-    <Section>
-        <Container className="flex flex-col gap-6">
-            <Badge className="rounded-none w-fit text-sm sm:text-md p-1 px-2 sm:p-2 sm:px-4" variant="outline">
-                Features
-            </Badge>
-            <div className="flex flex-col gap-6">
-                <h3 className="!mt-0 text-3xl sm:text-4xl font-bold">
-                    <Balancer>
-                        Plan smarter — never miss another deadline.
-                    </Balancer>
-                </h3>
-                <h4 className="text-xl sm:text-2xl font-light opacity-70">
-                    <Balancer>
-                        Bunni turns your Notion pages into an organized, interactive calendar—so you can focus on getting things done.
-                    </Balancer>
-                </h4>
-                <div className="mt-4 grid gap-6 md:mt-6 md:grid-cols-2">
-                    {featureText.map(({ icon, title, description, href, cta }, i) => (
-                        <Link
-                            href={href!}
-                            key={i}
-                            className="flex flex-col justify-between gap-6 rounded-none border p-6 transition-all hover:-mt-1 hover:mb-1"
-                        >
-                            <div className="grid gap-4">
-                                {icon}
-                                <h4 className="text-xl sm:text-2xl font-semibold">{title}</h4>
-                                <p className="text-md sm:text-lg opacity-75">{description}</p>
-                            </div>
-                        </Link>
-                    ))}
-                </div>
+export default function Feature() {
+    return (
+        <Section id="feature">
+            <Container className="flex flex-col gap-6">
+                <Badge
+                    className="rounded-none w-fit text-sm sm:text-md p-1 px-2 sm:p-2 sm:px-4"
+                    variant="outline"
+                >
+                    Features
+                </Badge>
 
-                <div>
-                    {singleFeatureText.map(({ icon, title, description, href, cta }, i) => (
-                        <Link
-                            href={href!}
-                            key={i}
-                            className="flex flex-col justify-between gap-6 border p-6 transition-all hover:-mt-1 hover:mb-1"
-                        >
-                            <div className="grid gap-4">
-                                {icon}
-                                <h4 className="text-xl sm:text-2xl font-semibold">{title}</h4>
-                                <p className="text-md sm:text-l opacity-75">{description}</p>
-                            </div>
-                        </Link>
-                    ))}
-                </div>
-            </div>
-        </Container>
-    </Section>
-);
+                <div className="flex flex-col gap-6">
+                    <h3 className="!mt-0 text-3xl sm:text-4xl font-bold">
+                        <Balancer>Plan smarter — never miss another deadline.</Balancer>
+                    </h3>
+                    <h4 className="text-xl sm:text-2xl font-light opacity-70">
+                        <Balancer>
+                            Bunni turns your Notion pages into an organized, interactive
+                            calendar—so you can focus on getting things done.
+                        </Balancer>
+                    </h4>
 
-export default Feature;
+                    <div className="mt-4 grid gap-6 md:mt-6 md:grid-cols-2">
+                        {featureText.map(({ icon, title, description, href }, i) => (
+                            <Link
+                                href={href!}
+                                key={i}
+                                className="flex flex-col justify-between gap-6 rounded-none border p-6 transition-all hover:-mt-1 hover:mb-1"
+                            >
+                                <div className="grid gap-4">
+                                    {icon}
+                                    <h4 className="text-xl sm:text-2xl font-semibold">
+                                        {title}
+                                    </h4>
+                                    <p className="text-md sm:text-lg opacity-75">
+                                        {description}
+                                    </p>
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+
+                    <div>
+                        {singleFeatureText.map(({ icon, title, description, href }, i) => (
+                            <Link
+                                href={href!}
+                                key={i}
+                                className="flex flex-col justify-between gap-6 border p-6 transition-all hover:-mt-1 hover:mb-1"
+                            >
+                                <div className="grid gap-4">
+                                    {icon}
+                                    <h4 className="text-xl sm:text-2xl font-semibold">
+                                        {title}
+                                    </h4>
+                                    <p className="text-md sm:text-lg opacity-75">
+                                        {description}
+                                    </p>
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+            </Container>
+        </Section>
+    );
+}
