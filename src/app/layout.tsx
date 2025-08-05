@@ -10,7 +10,7 @@ const manrope = Manrope({
 
 export const metadata: Metadata = {
   title: "Bunni",
-  description: "Bunni seamlessly connects to your Notion workspace and automatically pulls in assignments, assessments, and deadlines into a clean weekly and monthly calendar—highlighting today’s events so you never miss a deadline.",
+  description: "Bunni seamlessly connects to your Notion workspace and automatically pulls in assignments, assessments, and deadlines into a clean weekly and monthly calendar — highlighting today’s events so you never miss a deadline.",
   icons: {
     icon: "/logo.svg",
     shortcut: "/logo.svg",
@@ -30,7 +30,7 @@ export default function RootLayout({
       </head>
       <body className={`${manrope.className} antialiased`}>
         {children}
-        <Toaster position="top-right" richColors />
+        <Toaster position="top-center" />
       </body>
     </html>
   );
