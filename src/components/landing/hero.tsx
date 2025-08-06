@@ -21,7 +21,7 @@ export default function Hero({ user }: { user: User | null }) {
 
     async function signInWithNotion(): Promise<void> {
         try {
-            const { data, error } = await supabase.auth.signInWithOAuth({
+            const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'notion',
                 options: {
                     redirectTo: `${window.location.origin}/api/notion/callback`,

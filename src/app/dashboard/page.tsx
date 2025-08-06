@@ -14,11 +14,10 @@ export default function DashboardPage() {
 
     const signOut = async () => {
         try {
+            router.push('/')
             const { error } = await supabase.auth.signOut();
 
             if (error) throw new Error(error.message)
-
-            router.push('/')
         } catch (err: any) {
             toast.error(err.message || 'An unexpected error occurred while signing in with Notion')
         }
