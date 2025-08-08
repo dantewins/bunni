@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# bunni
 
-## Getting Started
+Turn your Notion pages into a dynamic, interactive calendar.
 
-First, run the development server:
+## Overview
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bunni is a full-stack web application built with Next.js that seamlessly connects to your Notion workspace and automatically pulls in assignments, assessments, and due dates into a clean weekly and monthly calendar. It uses Supabase for user authentication and session management, and implements serverless API routes to validate Notion databases and fetch calendar data.
+
+Key components include a marketing landing page, a protected dashboard with calendar and synchronization interfaces, API routes for Notion integration, and session middleware to guard routes.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Browser -->|HTTP| Frontend[Next.js Frontend]
+    Frontend -->|Sync| API_Sync[/api/notion/sync]
+    Frontend -->|Fetch| API_Calendar[/api/notion/calendar]
+    API_Sync -->|Notion API| Notion[Notion]
+    API_Sync -->|Supabase Auth & Metadata| Supabase[Supabase]
+    API_Calendar -->|Notion API| Notion
+    API_Calendar -->|Supabase Auth| Supabase
+    Frontend -->|Auth Middleware| Middleware[/_middleware.ts]
+    Middleware -->|Sessions| Supabase
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- OAuth-based Notion integration via Supabase Auth
+- Configurable Notion parent page and calendar database synchronization
+- Interactive weekly calendar view with horizontal scroll and date selection
+- Quick task addition form with real-time syncing to Notion
+- Checkbox-based completion tracking for tasks
+- Secure, server-side API routes for validating and querying Notion databases
+- Protected dashboard routes powered by custom Supabase session middleware
+- Responsive landing page with features overview, FAQ, and call-to-action
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Installation
 
-## Learn More
+```bash
+git clone https://github.com/dantewins/bunni.git
+cd bunni
+npm install
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Configuration
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Set environment variables in a `.env.local` file at the project root:
+-   - `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase project URL
+-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase anon/public API key
+- Configure Notion OAuth in Supabase Dashboard under Authentication → Providers:
+-   - Enable the Notion provider and set Redirect URL to `https://<your-domain>/api/notion/callback`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Usage
 
-## Deploy on Vercel
+- Run the development server: `npm run dev`
+- Open `http://localhost:3000` in your browser
+- On the landing page, click “Connect your Notion” to authenticate via Supabase OAuth
+- In the dashboard, go to “Sync” to provide your Notion parent page ID and calendar database ID
+- Navigate to “Calendar” to view and interact with your weekly task calendar
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Contributing
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Contributions are welcome! Please open an issue or submit a pull request.
+- Follow the existing code style and ensure any new features include type definitions and validation where applicable.
+- For major changes, discuss proposed enhancements via issue before implementing.
+
+## Acknowledgements
+
+- Next.js – React framework for production
+- Supabase – Open source Firebase alternative for authentication and database
+- ShadCN UI & Radix UI – Accessible component primitives
+- Zod & React Hook Form – Schema validation and forms
+- Tailwind CSS – Utility-first CSS framework
+- Lucide-React – Icon library
+- Sonner – Simple notifications library
