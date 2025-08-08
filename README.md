@@ -1,3 +1,11 @@
+<div align="center">
+  <a href="https://shipwrecked.hackclub.com/?t=ghrm" target="_blank">
+    <img src="https://hc-cdn.hel1.your-objectstorage.com/s/v3/739361f1d440b17fc9e2f74e49fc185d86cbec14_badge.png" 
+         alt="This project is part of Shipwrecked, the world's first hackathon on an island!" 
+         style="width: 35%;">
+  </a>
+</div>
+
 # bunni
 
 Turn your Notion pages into a dynamic, interactive calendar.
@@ -11,16 +19,16 @@ Key components include a marketing landing page, a protected dashboard with cale
 ## Architecture
 
 ```mermaid
-flowchart LR
-    Browser -->|HTTP| Frontend[Next.js Frontend]
-    Frontend -->|Sync| API_Sync[/api/notion/sync]
-    Frontend -->|Fetch| API_Calendar[/api/notion/calendar]
-    API_Sync -->|Notion API| Notion[Notion]
-    API_Sync -->|Supabase Auth & Metadata| Supabase[Supabase]
-    API_Calendar -->|Notion API| Notion
-    API_Calendar -->|Supabase Auth| Supabase
-    Frontend -->|Auth Middleware| Middleware[/_middleware.ts]
-    Middleware -->|Sessions| Supabase
+graph LR
+  Browser -->|HTTP| Frontend["Next.js Frontend"];
+  Frontend -->|Sync| API_Sync["/api/notion/sync"];
+  Frontend -->|Fetch| API_Calendar["/api/notion/calendar"];
+  API_Sync -->|Notion API| Notion[Notion];
+  API_Sync -->|Supabase Auth & Metadata| Supabase[Supabase];
+  API_Calendar -->|Notion API| Notion;
+  API_Calendar -->|Supabase Auth| Supabase;
+  Frontend -->|Auth Middleware| Middleware["/_middleware.ts"];
+  Middleware -->|Sessions| Supabase;
 ```
 
 ## Features
