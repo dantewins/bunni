@@ -4,13 +4,16 @@ import { useEffect, useRef, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
-import { ChevronLeft, ChevronRight, Loader2, Check } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ChevronLeft, ChevronRight, Loader2, Plus } from 'lucide-react';
 import { Section, Container } from '@/components/ds';
 import { toast } from "sonner";
+import { TaskForm } from '@/components/forms/TaskForm';
+import { createClient } from "@/utils/supabase/client";
 
 export default function CalendarPage() {
     const router = useRouter();
+    const supabase = createClient();
     const today = useMemo(() => {
         const t = new Date();
         return new Date(t.getFullYear(), t.getMonth(), t.getDate());
@@ -21,8 +24,29 @@ export default function CalendarPage() {
         return new Date(t.getFullYear(), t.getMonth(), t.getDate() - t.getDay());
     });
     const [tasks, setTasks] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState(today);
+    const [showForm, setShowForm] = useState(false);
+    const [userLoad, setUserLoad] = useState(true);
+    const [ids, setIds] = useState<Partial<{ parentPageId: string; calendarDatabaseId: string }>>({});
+
+    const abortControllerRef = useRef<AbortController | null>(null);
+
+    useEffect(() => {
+        async function fetchUser() {
+            const { data: { user }, error } = await supabase.auth.getUser();
+            if (error || !user) {
+                console.error('Error fetching user:', error);
+                return;
+            }
+            setIds({
+                parentPageId: user.user_metadata?.notion_parent_page_id || "",
+                calendarDatabaseId: user.user_metadata?.notion_calendar_db_id || "",
+            });
+            setUserLoad(false);
+        }
+        fetchUser();
+    }, [supabase]);
 
     const monthLabel = useMemo(() => {
         const mid = new Date(startDate);
@@ -81,35 +105,90 @@ export default function CalendarPage() {
         return `${y}-${m}-${d}`;
     }
 
-    useEffect(() => {
-        async function fetchTasks() {
-            try {
-                setLoading(true);
-                const res = await fetch(`/api/notion/calendar?pageId=de1e92db43ca4b32932c2588a43e95b2&dueDate=${formatYMD(selectedDate)}`);
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || "Failed to fetch daily tasks");
-
-                setTasks(data.results);
-            } catch (error: any) {
-                toast.error(error.message || "An unexpected error occurred while fetch your daily tasks");
-            } finally {
-                setLoading(false);
-            }
+    async function fetchCalendar() {
+        if (!ids.parentPageId || !ids.calendarDatabaseId) {
+            return;
         }
-        fetchTasks();
-    }, [selectedDate]);
+
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+
+        abortControllerRef.current = new AbortController();
+        const signal = abortControllerRef.current.signal;
+
+        try {
+            setLoading(true);
+            const res = await fetch(`/api/notion/calendar?parentPageId=${ids.parentPageId}&pageId=${ids.calendarDatabaseId}&dueDate=${formatYMD(selectedDate)}`, { signal });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Failed to fetch daily tasks");
+            setTasks(data.items);
+            setLoading(false);
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                return;
+            }
+            setLoading(false);
+            toast.error(error.message || "An unexpected error occurred while fetch your daily tasks");
+        }
+    }
+
+    useEffect(() => {
+        fetchCalendar();
+    }, [selectedDate, ids.parentPageId, ids.calendarDatabaseId]);
+
+    useEffect(() => {
+        return () => {
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+        };
+    }, []);
+
+    const onSubmit = async (values: { title: string; desc?: string; time?: string; }) => {
+        try {
+            setLoading(true);
+
+            const res = await fetch('/api/notion/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: values.title.trim(),
+                    description: values.desc?.trim() ?? '',
+                    dueDate: formatYMD(selectedDate),
+                    parentPageId: ids.parentPageId,
+                    time: values.time
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to add task');
+
+            toast.success('Task added');
+
+            await fetchCalendar();
+
+            setShowForm(false);
+        } catch (err: any) {
+            toast.error(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (userLoad) return null;
 
     return (
         <Section className="flex items-center justify-center h-[100vh] w-full backdrop-blur-sm">
             <Container className="flex flex-col gap-6">
-                <div className="flex items-center justify-between mb-3 h-12">
-                    <h1 className="text-4xl sm:text-5xl font-semibold">{monthLabel}</h1>
-                    <Button variant="outline" onClick={() => router.push('/dashboard')} className="h-full !px-4 md:!px-6">
-                        Home
-                    </Button>
+                <div className="flex items-center justify-between mb-3">
+                    <h1 className="text-3xl sm:text-5xl font-semibold hover:cursor-pointer" onClick={() => router.push('/dashboard')}>{monthLabel}</h1>
+                    <div className='sm:h-12 h-8'>
+                        <Button variant="outline" className="h-full !px-1 sm:!px-3" onClick={() => setShowForm(true)}>
+                            <Plus className='!h-5 !w-5 sm:!h-6 sm:!w-6' />
+                        </Button>
+                    </div>
                 </div>
                 <div className="grid gap-3 w-full [grid-template-columns:auto_1fr_auto]">
-
                     <Button variant="outline" onClick={() => changeWeek(-1)} className="h-20 !px-4 md:!px-6">
                         <ChevronLeft className="!w-5 !h-5" />
                     </Button>
@@ -138,21 +217,33 @@ export default function CalendarPage() {
                 <div className="flex flex-col gap-3 max-h-[50vh] overflow-y-auto">
                     {
                         !loading ?
-                            tasks.length > 0 ? tasks.map((task, i) => (
+                            !showForm && (tasks.length > 0 ? tasks.map((task, i) => (
                                 <div className="bg-white border border-gray-200 px-6 py-4 w-full" key={i}>
-                                    <div className="flex justify-between items-start mb-3">
-                                        <h3 className="text-xl font-semibold text-gray-900">{task.properties.Name.title[0].text.content}</h3>
-                                        {<Checkbox checked={task.properties.Done.checkbox} />}
+                                    <div className="mb-3">
+                                        <div className="mb-3 flex items-center justify-between">
+                                            <Badge className="border-gray-200 py-1 rounded-none text-xs px-3 hover:text-white hover:bg-gray-900" variant="outline">
+                                                {task.subjectName || "No Subject"}
+                                            </Badge>
+                                            <Checkbox checked={task.done} />
+                                        </div>
+                                        <h3 className="text-lg sm:text-xl font-semibold text-gray-900 break-words flex-1">
+                                            {task.title || "Untitled Task"}
+                                        </h3>
                                     </div>
-                                    <p className="text-sm text-gray-500">{task.properties.Description?.rich_text[0]?.text?.content || "No description for this task."}</p>
+                                    <p className="text-sm text-gray-500">
+                                        {task.description || "No description for this task."}
+                                    </p>
                                 </div>
                             )) : <div className="bg-white border border-gray-200 px-6 py-4 w-full">
-                                    No tasks for this date.
-                                </div>
+                                No tasks for this date.
+                            </div>)
                             : <div className="flex items-center justify-center min-h-[30vh]">
                                 <Loader2 className="!h-8 !w-8 animate-spin" />
                             </div>
                     }
+                    {showForm && (
+                        <TaskForm loading={loading} setShowForm={setShowForm} onSubmit={onSubmit} />
+                    )}
                 </div>
             </Container>
         </Section>

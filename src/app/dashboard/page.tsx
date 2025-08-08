@@ -34,9 +34,11 @@ export default function DashboardPage() {
                 <h3 className="rounded-none border bg-muted/50 p-4 text-muted-foreground text-md sm:text-lg">
                     Navigate below to use Bunni and see your assignments, assessments, and deadlines all laid out in a clear, interactive calendar so you never miss a beat.
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 w-full">
-                    <Button className="w-full col-span-3" onClick={() => router.push('/dashboard/calendar')}>Calendar</Button>
-                    <Button className="w-full" variant="outline" onClick={signOut}>Sign out</Button>
+                <div className="grid grid-cols-1 sm:grid-cols-6 gap-2 w-full">
+                    <Button className="w-full col-span-1 sm:col-span-3" onClick={() => router.push('/dashboard/calendar')}>Calendar</Button>
+                    <Button className="w-full col-span-1 sm:col-span-1" onClick={() => router.push('/dashboard/sync')}>Sync</Button>
+                    <Button className="w-full col-span-1 sm:col-span-1" onClick={() => router.push('/dashboard/info')}>Info</Button>
+                    <Button className="w-full col-span-1 sm:col-span-1" variant="outline" onClick={signOut}>Sign out</Button>
                 </div>
             </Container>
         </Section>

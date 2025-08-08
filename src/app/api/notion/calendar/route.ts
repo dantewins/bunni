@@ -1,151 +1,244 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-import { createServiceClient } from '@/utils/supabase/service';
+import { withValidNotionToken, notionFetch, dayKeyInTZ, getOrCreateTasksDb, TZ } from '@/lib/notion';
+
+function isYYYYMMDD(s: string) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(s);
+}
+
+function nextDay(yyyyMmDd: string) {
+    const [y, m, d] = yyyyMmDd.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + 1);
+    const y2 = dt.getUTCFullYear();
+    const m2 = String(dt.getUTCMonth() + 1).padStart(2, '0');
+    const d2 = String(dt.getUTCDate()).padStart(2, '0');
+    return `${y2}-${m2}-${d2}`;
+}
+
+function getTimezoneOffsetString(yyyyMmDd: string, tz: string): string {
+    const [year, month, day] = yyyyMmDd.split('-').map(Number);
+    const utcTime = Date.UTC(year, month - 1, day, 12, 0, 0, 0);
+    const date = new Date(utcTime);
+
+    const utcFormatter = new Intl.DateTimeFormat('en', {
+        timeZone: 'UTC',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+        hour12: false,
+    });
+
+    const tzFormatter = new Intl.DateTimeFormat('en', {
+        timeZone: tz,
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+        hour12: false,
+    });
+
+    const utcParts = utcFormatter.formatToParts(date);
+    const tzParts = tzFormatter.formatToParts(date);
+
+    function partsToUTC(parts: Intl.DateTimeFormatPart[]): number {
+        const get = (type: string) => Number(parts.find(p => p.type === type)!.value);
+        const y = get('year');
+        const mo = get('month') - 1;
+        const d = get('day');
+        const h = get('hour');
+        const m = get('minute');
+        const s = get('second');
+        return Date.UTC(y, mo, d, h, m, s);
+    }
+
+    const utcMs = partsToUTC(utcParts);
+    const tzMs = partsToUTC(tzParts);
+
+    const offsetMs = tzMs - utcMs;
+    const offsetMin = Math.round(offsetMs / 60000);
+    const absOffsetMin = Math.abs(offsetMin);
+    const hours = Math.floor(absOffsetMin / 60);
+    const minutes = absOffsetMin % 60;
+    const sign = offsetMin >= 0 ? '+' : '-';
+    return `${sign}${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+}
+
+function buildDueDateDayFilter(target: string, tz = TZ) {
+    const day = isYYYYMMDD(target) ? target : dayKeyInTZ(new Date(target), tz);
+    const next = nextDay(day);
+
+    const offsetStr = getTimezoneOffsetString(day, tz);
+    const nextOffsetStr = getTimezoneOffsetString(next, tz);
+
+    const localStart = `${day}T00:00:00${offsetStr}`;
+    const localEnd = `${next}T00:00:00${nextOffsetStr}`;
+    const utcStart = `${day}T00:00:00+00:00`;
+    const utcEnd = `${next}T00:00:00+00:00`;
+
+    const localStartTs = new Date(localStart).getTime();
+    const utcStartTs = new Date(utcStart).getTime();
+    const localEndTs = new Date(localEnd).getTime();
+    const utcEndTs = new Date(utcEnd).getTime();
+
+    const filterStartStr = localStartTs <= utcStartTs ? localStart : utcStart;
+    const filterEndStr = localEndTs >= utcEndTs ? localEnd : utcEnd;
+
+    return {
+        and: [
+            {
+                property: 'Due Date',
+                date: {
+                    on_or_after: filterStartStr,
+                },
+            },
+            {
+                property: 'Due Date',
+                date: {
+                    before: filterEndStr,
+                },
+            },
+        ],
+    };
+}
+
+function getLocalDay(dateObj: any, tz: string, targetDay: string) {
+    if (!dateObj || !dateObj.start) return false;
+    const start = dateObj.start;
+    if (isYYYYMMDD(start)) {
+        return start === targetDay;
+    } else {
+        const d = new Date(start);
+        if (isNaN(d.getTime())) return false;
+        const itemDay = dayKeyInTZ(d, tz);
+        return itemDay === targetDay;
+    }
+}
 
 export async function GET(request: Request) {
     const supabase = await createClient();
-    const { data: { session }, error } = await supabase.auth.getSession();
-
-    console.log(session);
-
-    if (error || !session || !session.provider_token || !session.provider_refresh_token) {
-        return NextResponse.json({ error: 'No valid session' }, { status: 401 });
-    }
-
     const url = new URL(request.url);
+    const parentPageId = url.searchParams.get('parentPageId');
     const rawPageId = url.searchParams.get('pageId');
-    const dueDate = url.searchParams.get('dueDate');
+    const dueDateParam = url.searchParams.get('dueDate');
+    const userTz = url.searchParams.get('tz') || TZ;
 
-    if (!rawPageId) {
-        return NextResponse.json({ error: 'Missing pageId' }, { status: 400 });
+    if (!parentPageId || !rawPageId) {
+        return NextResponse.json(
+            { error: 'parentPageId and pageId are required' },
+            { status: 400 }
+        );
     }
 
-    const databaseId = rawPageId.replace(/(\w{8})(\w{4})(\w{4})(\w{4})(\w{12})/, '$1-$2-$3-$4-$5');
+    const calendarDatabaseId = rawPageId.replace(
+        /(\w{8})(\w{4})(\w{4})(\w{4})(\w{12})/,
+        '$1-$2-$3-$4-$5'
+    );
 
-    const queryBody = dueDate ? {
-        filter: {
-            property: 'Due Date',
-            date: {
-                equals: dueDate
+    try {
+        const data = await withValidNotionToken(supabase, async (token) => {
+            const tasksDb = await getOrCreateTasksDb(token, parentPageId);
+
+            const queryBody: any = {};
+            let day: string | undefined;
+            if (dueDateParam) {
+                queryBody.filter = buildDueDateDayFilter(dueDateParam, userTz);
+                day = isYYYYMMDD(dueDateParam) ? dueDateParam : dayKeyInTZ(new Date(dueDateParam), userTz);
             }
-        }
-    } : {};
 
-    let providerToken = session.provider_token;
+            const calendarQuery = await notionFetch(token, `/databases/${calendarDatabaseId}/query`, {
+                method: 'POST',
+                body: JSON.stringify(queryBody),
+            });
 
-    async function queryNotion() {
-        const response = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${providerToken}`,
-                'Notion-Version': '2022-06-28',
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(queryBody),
-        });
-        return response;
-    }
+            let calendarResults = calendarQuery.results || [];
 
-    let response = await queryNotion();
-
-    if (!response.ok) {
-        if (response.status === 401) {
-            try {
-                const clientId = process.env.NOTION_CLIENT_ID;
-                const clientSecret = process.env.NOTION_CLIENT_SECRET;
-                if (!clientId || !clientSecret) {
-                    throw new Error('Missing Notion client credentials');
-                }
-
-                const authHeader = 'Basic ' + Buffer.from(clientId + ':' + clientSecret).toString('base64');
-
-                const refreshResponse = await fetch('https://api.notion.com/v1/oauth/token', {
-                    method: 'POST',
-                    headers: {
-                        Authorization: authHeader,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        grant_type: 'refresh_token',
-                        refresh_token: session.provider_refresh_token
-                    }),
+            if (day) {
+                calendarResults = calendarResults.filter((page: any) => {
+                    const dueDate = page.properties['Due Date']?.date;
+                    return getLocalDay(dueDate, userTz, day!);
                 });
+            }
 
-                if (!refreshResponse.ok) {
-                    const errBody = await refreshResponse.json();
-                    throw new Error(errBody.message || 'Failed to refresh token');
+            const processedCalendar = await Promise.all(calendarResults.map(async (p: any) => {
+                const props = p.properties || {};
+                const title =
+                    props?.Name?.title?.map((t: any) => t.plain_text).join('') || '';
+                const description =
+                    props?.Description?.rich_text?.map((t: any) => t.plain_text).join('') || '';
+                const due = props?.['Due Date']?.date?.start || null;
+                const done = Boolean(props?.Done?.checkbox);
+
+                const subjectId = props?.Subject?.relation?.[0]?.id || null;
+                let subjectName = null;
+                if (subjectId) {
+                    const subjectPage = await notionFetch(token, `/pages/${subjectId}`, {
+                        method: 'GET',
+                    });
+                    subjectName = subjectPage.properties?.Name?.title?.map((t: any) => t.plain_text).join('') || '';
                 }
 
-                const refreshData = await refreshResponse.json();
-                const newAccessToken = refreshData.access_token;
-                const newRefreshToken = refreshData.refresh_token;
-
-                if (!newAccessToken || !newRefreshToken) {
-                    throw new Error('Invalid refresh response');
-                }
-
-                const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-                const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-                if (!supabaseUrl || !serviceKey) {
-                    throw new Error('Missing Supabase admin credentials');
-                }
-
-                const serviceClient = await createServiceClient();
-
-                const { data: identity, error: idError } = await serviceClient
-                    .from('identities')
-                    .select('id, identity_data')
-                    .eq('user_id', session.user.id)
-                    .eq('provider', 'notion')
-                    .single();
-
-                if (idError || !identity) {
-                    throw new Error('Identity not found');
-                }
-
-                const newIdentityData = {
-                    ...identity.identity_data,
-                    access_token: newAccessToken,
-                    refresh_token: newRefreshToken
+                return {
+                    id: p.id,
+                    title,
+                    description,
+                    dueDate: due,
+                    done,
+                    subjectName,
+                    raw: p,
                 };
+            }));
 
-                const { error: updateError } = await serviceClient
-                    .from('identities')
-                    .update({
-                        identity_data: newIdentityData,
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', identity.id);
+            const tasksQuery = await notionFetch(token, `/databases/${tasksDb.id}/query`, {
+                method: 'POST',
+                body: JSON.stringify(queryBody),
+            });
 
-                if (updateError) {
-                    throw new Error('Failed to update identity: ' + updateError.message);
-                }
+            let tasksResults = tasksQuery.results || [];
 
-                providerToken = newAccessToken;
-                response = await queryNotion();
-
-                if (!response.ok) {
-                    const errorBody = await response.json();
-                    throw new Error(errorBody.message || 'Notion API error after refresh');
-                }
-            } catch (refreshErr: unknown) {
-                const errorMessage = refreshErr instanceof Error ? refreshErr.message : 'Unknown error';
-                console.error('Refresh error:', errorMessage);
-                return NextResponse.json({ error: 'Invalid token, please re-authenticate with Notion' }, { status: 401 });
+            if (day) {
+                tasksResults = tasksResults.filter((page: any) => {
+                    const dueDate = page.properties['Due Date']?.date;
+                    return getLocalDay(dueDate, userTz, day!);
+                });
             }
-        } else {
-            let errorBody;
-            try {
-                errorBody = await response.json();
-            } catch {
-                errorBody = {};
-            }
-            console.log('Notion error body:', errorBody);
-            return NextResponse.json({ error: errorBody.message || 'Notion API error' }, { status: response.status });
-        }
+
+            const processedTasks = tasksResults.map((p: any) => {
+                const props = p.properties || {};
+                const title =
+                    props?.Name?.title?.map((t: any) => t.plain_text).join('') || '';
+                const description =
+                    props?.Description?.rich_text?.map((t: any) => t.plain_text).join('') || '';
+                const due = props?.['Due Date']?.date?.start || null;
+                const done = Boolean(props?.Done?.checkbox);
+
+                return {
+                    id: p.id,
+                    title,
+                    description,
+                    dueDate: due,
+                    done,
+                    subjectName: 'Task',
+                    raw: p,
+                };
+            });
+
+            const combinedItems = [...processedCalendar, ...processedTasks];
+
+            return {
+                items: combinedItems,
+                has_more: calendarQuery.has_more || tasksQuery.has_more,
+                next_cursor: null,
+            };
+        });
+
+        return NextResponse.json(data, { status: 200 });
+    } catch (err: any) {
+        return NextResponse.json({ error: err.message }, { status: 500 });
     }
-
-    const data = await response.json();
-    return NextResponse.json(data);
 }
