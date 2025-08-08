@@ -10,6 +10,10 @@
 
 Turn your Notion pages into a dynamic, interactive calendar.
 
+## How to get Notion Page id
+
+Right click page on the sidebar, and splice everything after the v. For example, The id from https://www.notion.so/School-Life-b357b03b26814124b4c259bf03bd5678?v=4acabdd93bb646e7bac16dea0a1556fc&source=copy_link is b357b03b26814124b4c259bf03bd5678.
+
 ## Overview
 
 bunni is a full-stack web application built with Next.js that seamlessly connects to your Notion workspace and automatically pulls in assignments, assessments, and due dates into a clean weekly and monthly calendar. It uses Supabase for user authentication and session management, and implements serverless API routes to validate Notion databases and fetch calendar data.
