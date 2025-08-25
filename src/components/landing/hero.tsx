@@ -10,10 +10,9 @@ import { toast } from 'sonner'
 type HeroProps = {
     user: { id: string; name?: string | null; image?: string | null } | null
     loading: boolean
-    onConnectNotion: () => void
 }
 
-export default function Hero({ user, loading, onConnectNotion }: HeroProps) {
+export default function Hero({ user, loading }: HeroProps) {
     const router = useRouter()
 
     const scrollToSection = (sectionId: string) => {

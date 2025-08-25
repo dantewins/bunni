@@ -36,16 +36,28 @@ export async function GET(req: Request) {
 
     const name = tokens.owner?.user?.name || "Unknown";
     const image = tokens.owner?.user?.avatar_url || null;
+    const notionUserId = tokens.owner?.user?.id;
 
-    const user = await prisma.user.create({
-        data: {
-            name,
-            image,
-        },
+    if (!notionUserId) {
+        return NextResponse.json({ success: false, message: "Missing Notion user ID" }, { status: 400 });
+    }
+
+    const user = await prisma.user.upsert({
+        where: { notionUserId },
+        update: { name, image },
+        create: { name, image, notionUserId },
     });
 
-    await prisma.notionConnection.create({
-        data: {
+    await prisma.notionConnection.upsert({
+        where: { userId: user.id },
+        update: {
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token ?? null,
+            expiresAt: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : null,
+            workspaceId: tokens.workspace_id ?? null,
+            botId: tokens.bot_id ?? null,
+        },
+        create: {
             userId: user.id,
             accessToken: tokens.access_token,
             refreshToken: tokens.refresh_token ?? null,

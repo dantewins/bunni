@@ -8,28 +8,28 @@ generator client {
 }
 
 model User {
-  id        String  @id @default(cuid())
-  name      String?
-  image     String?
+  id           String   @id @default(cuid())
+  name         String?
+  image        String?
+  notionUserId String?  @unique
   // You might not get an email from Notion; key by id
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  notion    NotionConnection?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  notion       NotionConnection?
 }
 
 model NotionConnection {
-  userId             String    @id @map("user_id")
-  accessToken        String    @map("access_token")
-  refreshToken       String?   @map("refresh_token")
-  expiresAt          DateTime? @map("expires_at")
-  workspaceId        String?   @map("workspace_id")
-  botId              String?   @map("bot_id")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
-  parentPageId       String?   @map("parent_page_id")
-  calendarDatabaseId String?   @map("calendar_database_id")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            String   @id @map("user_id")
+  accessToken       String   @map("access_token")
+  refreshToken      String?  @map("refresh_token")
+  expiresAt         DateTime? @map("expires_at")
+  workspaceId       String?  @map("workspace_id")
+  botId             String?  @map("bot_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  parentPageId      String?  @map("parent_page_id")
+  calendarDatabaseId String? @map("calendar_database_id")
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notion_connections")
 }

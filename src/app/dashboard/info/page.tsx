@@ -9,7 +9,7 @@ export default function InfoPage() {
     const router = useRouter();
 
     return (
-        <Section className="flex items-start sm:items-center justify-center min-h-[100vh] w-full backdrop-blur-sm">
+        <Section className="flex items-start sm:items-center justify-center min-h-[100vh] w-full backdrop-blur-sm my-6">
             <Container className="flex flex-col gap-6">
                 <h1 className="!mb-0 text-5xl sm:text-6xl font-semibold">
                     Welcome to Bunni!
@@ -19,7 +19,7 @@ export default function InfoPage() {
                 </p>
                 <ul className="list-none pl-0 space-y-4 text-md sm:text-lg text-muted-foreground">
                     <li className="rounded-none border bg-muted/50 p-4">
-                        <strong>Sync Your Notion Pages:</strong> Go to <a href="/dashboard/sync" className="text-blue-500 hover:underline">/dashboard/sync</a> to connect your Notion workspace. Provide the parent page ID (where your databases live) and the calendar database ID. This links Bunni to your Notion data.
+                        <strong>Sync Your Notion Pages:</strong> Go to <a href="/dashboard/sync" className="text-blue-500 hover:underline">/dashboard/sync</a> to connect your Notion workspace. Provide the parent page ID (where your databases live) and the calendar database ID. This links Bunni to your Notion data. You can obtain a notion page ID by opening the page in Notion and copying the ID from the URL.
                     </li>
                     <li className="rounded-none border bg-muted/50 p-4">
                         <strong>Set Up Your Notion Database:</strong> Ensure your calendar database in Notion includes these exact properties:
