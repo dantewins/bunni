@@ -1,19 +1,20 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Loader2, Plus } from 'lucide-react';
-import { Section, Container } from '@/components/ds';
+import { useEffect, useRef, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
+import { Section, Container } from "@/components/ds";
 import { toast } from "sonner";
-import { TaskForm } from '@/components/forms/TaskForm';
-import { createClient } from "@/utils/supabase/client";
+import { TaskForm } from "@/components/forms/TaskForm";
+
+type Ids = Partial<{ parentPageId: string; calendarDatabaseId: string }>;
 
 export default function CalendarPage() {
     const router = useRouter();
-    const supabase = createClient();
+
     const today = useMemo(() => {
         const t = new Date();
         return new Date(t.getFullYear(), t.getMonth(), t.getDate());
@@ -27,33 +28,44 @@ export default function CalendarPage() {
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState(today);
     const [showForm, setShowForm] = useState(false);
-    const [userLoad, setUserLoad] = useState(true);
-    const [ids, setIds] = useState<Partial<{ parentPageId: string; calendarDatabaseId: string }>>({});
+    const [initializing, setInitializing] = useState(true);
+    const [ids, setIds] = useState<Ids>({});
 
     const abortControllerRef = useRef<AbortController | null>(null);
 
     useEffect(() => {
-        async function fetchUser() {
-            const { data: { user }, error } = await supabase.auth.getUser();
-            if (error || !user) {
-                console.error('Error fetching user:', error);
-                return;
+        let alive = true;
+        (async () => {
+            try {
+                const res = await fetch("/api/notion/connection", { method: "GET", cache: "no-store", credentials: "include" });
+                if (res.status === 401) {
+                    router.push("/");
+                    return;
+                }
+                const data = await res.json();
+                if (alive) {
+                    setIds({
+                        parentPageId: data?.parentPageId || "",
+                        calendarDatabaseId: data?.calendarDatabaseId || "",
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to load Notion IDs:", e);
+            } finally {
+                if (alive) setInitializing(false);
             }
-            setIds({
-                parentPageId: user.user_metadata?.notion_parent_page_id || "",
-                calendarDatabaseId: user.user_metadata?.notion_calendar_db_id || "",
-            });
-            setUserLoad(false);
-        }
-        fetchUser();
-    }, [supabase]);
+        })();
+        return () => {
+            alive = false;
+        };
+    }, [router]);
 
     const monthLabel = useMemo(() => {
         const mid = new Date(startDate);
         mid.setDate(startDate.getDate() + 3);
         return new Intl.DateTimeFormat(undefined, {
-            month: 'long',
-            year: 'numeric'
+            month: "long",
+            year: "numeric",
         }).format(mid);
     }, [startDate]);
 
@@ -68,7 +80,7 @@ export default function CalendarPage() {
     );
 
     const changeWeek = (dir: number) =>
-        setStartDate(prev => {
+        setStartDate((prev) => {
             const d = new Date(prev);
             d.setDate(prev.getDate() + dir * 7);
             return d;
@@ -94,79 +106,84 @@ export default function CalendarPage() {
             }
         };
 
-        el.addEventListener('wheel', onWheel, { passive: false });
-        return () => el.removeEventListener('wheel', onWheel);
+        el.addEventListener("wheel", onWheel, { passive: false });
+        return () => el.removeEventListener("wheel", onWheel);
     }, []);
 
     function formatYMD(date: Date) {
         const y = date.getFullYear();
-        const m = String(date.getMonth() + 1).padStart(2, '0');
-        const d = String(date.getDate()).padStart(2, '0');
+        const m = String(date.getMonth() + 1).padStart(2, "0");
+        const d = String(date.getDate()).padStart(2, "0");
         return `${y}-${m}-${d}`;
     }
 
     async function fetchCalendar() {
-        if (!ids.parentPageId || !ids.calendarDatabaseId) {
-            return;
-        }
+        if (!ids.parentPageId || !ids.calendarDatabaseId) return;
 
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-        }
+        if (abortControllerRef.current) abortControllerRef.current.abort();
 
         abortControllerRef.current = new AbortController();
         const signal = abortControllerRef.current.signal;
 
         try {
             setLoading(true);
-            const res = await fetch(`/api/notion/calendar?parentPageId=${ids.parentPageId}&pageId=${ids.calendarDatabaseId}&dueDate=${formatYMD(selectedDate)}`, { signal });
+            const res = await fetch(
+                `/api/notion/calendar?parentPageId=${ids.parentPageId}&pageId=${ids.calendarDatabaseId}&dueDate=${formatYMD(
+                    selectedDate
+                )}`,
+                { signal, credentials: "include" }
+            );
+            if (res.status === 401) {
+                router.push("/");
+                return;
+            }
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Failed to fetch daily tasks");
             setTasks(data.items);
-            setLoading(false);
         } catch (error: any) {
-            if (error.name === 'AbortError') {
-                return;
+            if (error.name !== "AbortError") {
+                toast.error(error.message || "An unexpected error occurred while fetching your daily tasks");
             }
+        } finally {
             setLoading(false);
-            toast.error(error.message || "An unexpected error occurred while fetch your daily tasks");
         }
     }
 
     useEffect(() => {
         fetchCalendar();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedDate, ids.parentPageId, ids.calendarDatabaseId]);
 
     useEffect(() => {
         return () => {
-            if (abortControllerRef.current) {
-                abortControllerRef.current.abort();
-            }
+            if (abortControllerRef.current) abortControllerRef.current.abort();
         };
     }, []);
 
-    const onSubmit = async (values: { title: string; desc?: string; time?: string; }) => {
+    const onSubmit = async (values: { title: string; desc?: string; time?: string }) => {
         try {
             setLoading(true);
-
-            const res = await fetch('/api/notion/tasks', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+            const res = await fetch("/api/notion/tasks", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     title: values.title.trim(),
-                    description: values.desc?.trim() ?? '',
+                    description: values.desc?.trim() ?? "",
                     dueDate: formatYMD(selectedDate),
                     parentPageId: ids.parentPageId,
-                    time: values.time
+                    time: values.time,
                 }),
+                credentials: "include",
             });
+            if (res.status === 401) {
+                router.push("/");
+                return;
+            }
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to add task');
+            if (!res.ok) throw new Error(data.error || "Failed to add task");
 
-            toast.success('Task added');
-
+            toast.success("Task added");
             await fetchCalendar();
-
             setShowForm(false);
         } catch (err: any) {
             toast.error(err.message);
@@ -175,49 +192,68 @@ export default function CalendarPage() {
         }
     };
 
-    if (userLoad) return null;
+    if (initializing) return null;
 
     return (
         <Section className="flex items-center justify-center h-[100vh] w-full backdrop-blur-sm">
             <Container className="flex flex-col gap-6">
                 <div className="flex items-center justify-between mb-3">
-                    <h1 className="text-3xl sm:text-5xl font-semibold hover:cursor-pointer" onClick={() => router.push('/dashboard')}>{monthLabel}</h1>
-                    <div className='sm:h-12 h-8'>
+                    <h1
+                        className="text-3xl sm:text-5xl font-semibold hover:cursor-pointer"
+                        onClick={() => router.push("/dashboard")}
+                    >
+                        {monthLabel}
+                    </h1>
+                    <div className="sm:h-12 h-8">
                         <Button variant="outline" className="h-full !px-1 sm:!px-3" onClick={() => setShowForm(true)}>
-                            <Plus className='!h-5 !w-5 sm:!h-6 sm:!w-6' />
+                            <Plus className="!h-5 !w-5 sm:!h-6 sm:!w-6" />
                         </Button>
                     </div>
                 </div>
+
                 <div className="grid gap-3 w-full [grid-template-columns:auto_1fr_auto]">
                     <Button variant="outline" onClick={() => changeWeek(-1)} className="h-20 !px-4 md:!px-6">
                         <ChevronLeft className="!w-5 !h-5" />
                     </Button>
-                    <div ref={scrollerRef} className="w-full h-20 overflow-x-auto overflow-y-hidden scroll-smooth" style={{ overscrollBehaviorX: 'contain' }}>
+
+                    <div
+                        ref={scrollerRef}
+                        className="w-full h-20 overflow-x-auto overflow-y-hidden scroll-smooth"
+                        style={{ overscrollBehaviorX: "contain" }}
+                    >
                         <div className="grid grid-cols-[repeat(7,minmax(5rem,1fr))] gap-3 w-full">
                             {weekDates.map((date, idx) => {
                                 const isToday = isSameDay(date, today);
                                 const isSelected = isSameDay(date, selectedDate);
-                                const variant = isSelected || isToday ? 'default' : 'outline';
+                                const variant = isSelected || isToday ? "default" : "outline";
 
                                 return (
-                                    <Button key={idx} onClick={() => setSelectedDate(date)} variant={variant} className={`h-20 flex flex-col items-center justify-center ${isSelected && !isToday ? 'text-white !bg-slate-600' : ''}`}>
-                                        <span className={`text-md font-medium uppercase`}>
-                                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][idx]}
+                                    <Button
+                                        key={idx}
+                                        onClick={() => setSelectedDate(date)}
+                                        variant={variant}
+                                        className={`h-20 flex flex-col items-center justify-center ${isSelected && !isToday ? "text-white !bg-slate-600" : ""
+                                            }`}
+                                    >
+                                        <span className="text-md font-medium uppercase">
+                                            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][idx]}
                                         </span>
                                         <span className="text-xl">{date.getDate()}</span>
                                     </Button>
-                                )
+                                );
                             })}
                         </div>
                     </div>
+
                     <Button variant="outline" onClick={() => changeWeek(1)} className="h-20 !px-4 md:!px-6">
                         <ChevronRight className="!w-5 !h-5" />
                     </Button>
                 </div>
+
                 <div className="flex flex-col gap-3 max-h-[50vh] overflow-y-auto">
-                    {
-                        !loading ?
-                            !showForm && (tasks.length > 0 ? tasks.map((task, i) => (
+                    {!loading ? (
+                        !showForm && tasks.length > 0 ? (
+                            tasks.map((task, i) => (
                                 <div className="bg-white border border-gray-200 px-6 py-4 w-full" key={i}>
                                     <div className="mb-3">
                                         <div className="mb-3 flex items-center justify-between">
@@ -234,16 +270,17 @@ export default function CalendarPage() {
                                         {task.description || "No description for this task."}
                                     </p>
                                 </div>
-                            )) : <div className="bg-white border border-gray-200 px-6 py-4 w-full">
-                                No tasks for this date.
-                            </div>)
-                            : <div className="flex items-center justify-center min-h-[30vh]">
-                                <Loader2 className="!h-8 !w-8 animate-spin" />
-                            </div>
-                    }
-                    {showForm && (
-                        <TaskForm loading={loading} setShowForm={setShowForm} onSubmit={onSubmit} />
+                            ))
+                        ) : !showForm ? (
+                            <div className="bg-white border border-gray-200 px-6 py-4 w-full">No tasks for this date.</div>
+                        ) : null
+                    ) : (
+                        <div className="flex items-center justify-center min-h-[30vh]">
+                            <Loader2 className="!h-8 !w-8 animate-spin" />
+                        </div>
                     )}
+
+                    {showForm && <TaskForm loading={loading} setShowForm={setShowForm} onSubmit={onSubmit} />}
                 </div>
             </Container>
         </Section>

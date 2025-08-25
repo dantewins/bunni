@@ -1,34 +1,42 @@
-"use client"
+'use client'
 
 import { useRouter } from "next/navigation";
 import { Container, Section } from "@/components/ds";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { SyncForm } from "@/components/forms/SyncForm";
-import { createClient } from "@/utils/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function SyncPage() {
     const router = useRouter();
-    const supabase = createClient();
-    const [userLoad, setUserLoad] = useState(true);
+    const { user, loading: authLoading, refresh } = useAuth();
     const [loading, setLoading] = useState(false);
+    const [connectionLoading, setConnectionLoading] = useState(true);
     const [defaultValues, setDefaultValues] = useState<Partial<{ parentPageId: string; calendarDatabaseId: string }>>({});
 
     useEffect(() => {
-        async function fetchUser() {
-            const { data: { user }, error } = await supabase.auth.getUser();
-            if (error || !user) {
-                console.error('Error fetching user:', error);
-                return;
+        async function fetchConnection() {
+            if (!user || authLoading) return;
+            setConnectionLoading(true);
+            try {
+                const res = await fetch('/api/notion/connection', {
+                    cache: 'no-store',
+                    credentials: 'include',
+                });
+                if (!res.ok) throw new Error('Failed to fetch connection');
+                const data = await res.json();
+                setDefaultValues({
+                    parentPageId: data.parentPageId || "",
+                    calendarDatabaseId: data.calendarDatabaseId || "",
+                });
+            } catch (err) {
+                console.error('Error fetching connection:', err);
+            } finally {
+                setConnectionLoading(false);
             }
-            setDefaultValues({
-                parentPageId: user.user_metadata?.notion_parent_page_id || "",
-                calendarDatabaseId: user.user_metadata?.notion_calendar_db_id || "",
-            });
-            setUserLoad(false);
         }
-        fetchUser();
-    }, [supabase]);
+        fetchConnection();
+    }, [user, authLoading]);
 
     const handleSubmit = async (values: { parentPageId: string; calendarDatabaseId: string }) => {
         setLoading(true);
@@ -55,7 +63,7 @@ export default function SyncPage() {
         router.push('/dashboard');
     };
 
-    if (userLoad) return null;
+    if (authLoading || connectionLoading || !user) return null;
 
     return (
         <Section className="flex items-start items-center justify-center min-h-[100vh] w-full backdrop-blur-sm">

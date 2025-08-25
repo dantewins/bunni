@@ -1,33 +1,67 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@/utils/supabase/server';
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { signSession } from "@/lib/auth";
+import { setSessionCookie } from "@/lib/cookies";
 
-export async function GET(request: Request) {
-    const url = new URL(request.url);
-    const code = url.searchParams.get('code');
-    let errorMsg = 'Something went wrong while trying to log you in.';
-
+export async function GET(req: Request) {
+    const url = new URL(req.url);
+    const code = url.searchParams.get("code");
     if (!code) {
-        return NextResponse.json({ success: false, message: errorMsg }, { status: 400 });
+        return NextResponse.json({ success: false, message: "Missing code" }, { status: 400 });
     }
 
-    const supabase = await createClient();
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    const tokenRes = await fetch("https://api.notion.com/v1/oauth/token", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization:
+                "Basic " +
+                Buffer.from(
+                    `${process.env.NOTION_CLIENT_ID}:${process.env.NOTION_CLIENT_SECRET}`
+                ).toString("base64"),
+        },
+        body: JSON.stringify({
+            grant_type: "authorization_code",
+            code,
+            redirect_uri: `${url.origin}/api/notion/callback`,
+        }),
+    });
 
-    if (error) {
-        errorMsg = error.message;
-        return NextResponse.json({ success: false, message: errorMsg }, { status: 400 });
+    if (!tokenRes.ok) {
+        const t = await tokenRes.text();
+        return NextResponse.json({ success: false, message: t }, { status: 400 });
     }
 
-    if (data.session?.provider_token && data.session?.provider_refresh_token) {
-        await supabase.auth.updateUser({
-            data: {
-                notion_access_token: data.session.provider_token,
-                notion_refresh_token: data.session.provider_refresh_token,
-            },
-        });
-    }
+    const tokens: any = await tokenRes.json();
 
-    const host = request.headers.get('x-forwarded-host') ?? url.host;
-    const proto = (request.headers.get('x-forwarded-proto') ?? url.protocol.replace(':', '')).split(',')[0];
-    return NextResponse.redirect(`${proto}://${host}/dashboard`);
+    const name = tokens.owner?.user?.name || "Unknown";
+    const image = tokens.owner?.user?.avatar_url || null;
+
+    const user = await prisma.user.create({
+        data: {
+            name,
+            image,
+        },
+    });
+
+    await prisma.notionConnection.create({
+        data: {
+            userId: user.id,
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token ?? null,
+            expiresAt: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : null,
+            workspaceId: tokens.workspace_id ?? null,
+            botId: tokens.bot_id ?? null,
+        },
+    });
+
+    const jwt = await signSession({ sub: user.id }, "7d");
+
+    const host = req.headers.get("x-forwarded-host") ?? url.host;
+    const proto = (req.headers.get("x-forwarded-proto") ?? url.protocol.replace(":", "")).split(",")[0];
+
+    const response = NextResponse.redirect(`${proto}://${host}/dashboard`);
+    setSessionCookie(jwt, response);
+
+    return response;
 }
