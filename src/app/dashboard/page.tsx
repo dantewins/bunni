@@ -14,7 +14,6 @@ export default function DashboardPage() {
         try {
             await fetch("/api/auth/logout", { method: "POST" })
             router.push("/")
-            router.refresh()
         } catch (err: any) {
             toast.error(err?.message || "Could not sign out")
         }

@@ -12,6 +12,12 @@ export function setSessionCookie(token: string, res: NextResponse, maxAge = 60 *
     })
 }
 
-export function clearSessionCookie(res: NextResponse) {
-    res.cookies.set(SESSION_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 })
+export function clearSessionCookie(response: NextResponse) {
+    response.cookies.delete({
+        name: "app_session",
+        path: "/",
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        httpOnly: true,
+    })
 }

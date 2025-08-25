@@ -1,6 +1,6 @@
 import { cookies } from "next/headers"
 import { SignJWT, jwtVerify } from "jose"
-import { NextRequest } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 
 const secret = new TextEncoder().encode(process.env.APP_JWT_SECRET!)
 const ALG = "HS256"
