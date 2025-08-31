@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Loader2, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Plus, CalendarSync } from "lucide-react";
 import { Section, Container } from "@/components/ds";
 import { toast } from "sonner";
 import { TaskForm } from "@/components/forms/TaskForm";
@@ -37,7 +37,7 @@ export default function CalendarPage() {
         let alive = true;
         (async () => {
             try {
-                const res = await fetch("/api/notion/connection", { method: "GET", cache: "no-store", credentials: "include" });
+                const res = await fetch("/api/notion/sync", { method: "GET", cache: "no-store", credentials: "include" });
                 if (res.status === 401) {
                     router.push("/");
                     return;
@@ -127,10 +127,11 @@ export default function CalendarPage() {
 
         try {
             setLoading(true);
+            const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
             const res = await fetch(
                 `/api/notion/calendar?parentPageId=${ids.parentPageId}&pageId=${ids.calendarDatabaseId}&dueDate=${formatYMD(
                     selectedDate
-                )}`,
+                )}&tz=${encodeURIComponent(userTimezone)}`,
                 { signal, credentials: "include" }
             );
             if (res.status === 401) {
@@ -206,6 +207,9 @@ export default function CalendarPage() {
                     </h1>
                     <div className="sm:h-12 h-8">
                         <Button variant="outline" className="h-full !px-1 sm:!px-3" onClick={() => setShowForm(true)}>
+                            <CalendarSync className="!h-5 !w-5 sm:!h-6 sm:!w-6" />
+                        </Button>
+                        <Button variant="outline" className="h-full !px-1 sm:!px-3 ml-3" onClick={() => setShowForm(true)} disabled={true}>
                             <Plus className="!h-5 !w-5 sm:!h-6 sm:!w-6" />
                         </Button>
                     </div>
@@ -272,7 +276,7 @@ export default function CalendarPage() {
                                 </div>
                             ))
                         ) : !showForm ? (
-                            <div className="bg-white border border-gray-200 px-6 py-4 w-full">No tasks for this date.</div>
+                            <div className="bg-white border border-gray-200 px-6 py-4 w-full">No assignments or assessments for this date.</div>
                         ) : null
                     ) : (
                         <div className="flex items-center justify-center min-h-[30vh]">

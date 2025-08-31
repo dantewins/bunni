@@ -1,26 +1,21 @@
-import { NextResponse } from "next/server"
-import { requireUserId } from "@/lib/auth"
-import { withValidNotionToken, notionFetch, buildDueDateProp, getOrCreateTasksDb } from "@/lib/notion"
+import { NextRequest, NextResponse } from "next/server"
+import { getUserId } from "@/lib/auth"
+import { withValidNotionToken, notionFetch, getOrCreateTasksDb } from "@/lib/notion"
+import { buildDueDateProp } from "@/lib/date"
 
-export async function POST(request: Request) {
-    let userId: string
+export async function POST(request: NextRequest) {
     try {
-        userId = await requireUserId()
-    } catch {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+        const userId = await getUserId(request);
 
-    const { title, description, dueDate, time, parentPageId } = await request.json()
+        const { title, description, dueDate, time, parentPageId } = await request.json()
 
-    if (!title || !parentPageId) {
-        return NextResponse.json(
-            { error: "title and parentPageId are required" },
-            { status: 400 }
-        )
-    }
-
-    try {
-        const page = await withValidNotionToken(userId, async (token) => {
+        if (!title || !parentPageId) {
+            return NextResponse.json(
+                { error: "title and parentPageId are required" },
+                { status: 400 }
+            )
+        }
+        const page = await withValidNotionToken(userId!, async (token) => {
             const db = await getOrCreateTasksDb(token, parentPageId)
 
             return notionFetch(token, "/pages", {
@@ -41,6 +36,6 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ ok: true, page }, { status: 200 })
     } catch (err: any) {
-        return NextResponse.json({ error: err?.message || "Internal error" }, { status: 500 })
+        return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }

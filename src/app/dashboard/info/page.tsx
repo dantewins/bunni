@@ -11,8 +11,8 @@ export default function InfoPage() {
     return (
         <Section className="flex items-start sm:items-center justify-center min-h-[100vh] w-full backdrop-blur-sm my-6">
             <Container className="flex flex-col gap-6">
-                <h1 className="!mb-0 text-5xl sm:text-6xl font-semibold">
-                    Welcome to Bunni!
+                <h1 className="!mb-0 text-5xl sm:text-6xl font-semibold hover:cursor-pointer" onClick={() => router.push('/dashboard')}>
+                    Welcome to bunni!
                 </h1>
                 <p className="text-md sm:text-lg text-muted-foreground">
                     Bunni helps you manage assignments, assessments, and deadlines with a clear, interactive calendar integrated with Notion. Follow these steps to get started:
@@ -22,7 +22,7 @@ export default function InfoPage() {
                         <strong>Sync Your Notion Pages:</strong> Go to <a href="/dashboard/sync" className="text-blue-500 hover:underline">/dashboard/sync</a> to connect your Notion workspace. Provide the parent page ID (where your databases live) and the calendar database ID. This links Bunni to your Notion data. You can obtain a notion page ID by opening the page in Notion and copying the ID from the URL.
                     </li>
                     <li className="rounded-none border bg-muted/50 p-4">
-                        <strong>Set Up Your Notion Database:</strong> Ensure your calendar database in Notion includes these exact properties:
+                        <strong>Set Up Your Notion Database:</strong> Go to <a href="/dashboard/setup" className="text-blue-500 hover:underline">/dashboard/setup</a> and ensure your calendar database in Notion includes these exact properties:
                         <ul className="list-disc pl-6 mt-2 space-y-1">
                             <li><strong>Name</strong>: Title type – for task names.</li>
                             <li><strong>Due Date</strong>: Date type – for deadlines (supports dates with or without times).</li>
@@ -37,7 +37,7 @@ export default function InfoPage() {
                     </li>
                 </ul>
                 <Button onClick={() => router.push('/dashboard')} className="w-full sm:w-auto">
-                    Get Started
+                    Get started
                 </Button>
             </Container>
         </Section>

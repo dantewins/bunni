@@ -19,7 +19,7 @@ export default function SyncPage() {
             if (!user || authLoading) return;
             setConnectionLoading(true);
             try {
-                const res = await fetch('/api/notion/connection', {
+                const res = await fetch('/api/notion/sync', {
                     cache: 'no-store',
                     credentials: 'include',
                 });
@@ -68,8 +68,8 @@ export default function SyncPage() {
     return (
         <Section className="flex items-start items-center justify-center min-h-[100vh] w-full backdrop-blur-sm">
             <Container className="flex flex-col gap-6">
-                <h1 className="!mb-0 text-5xl sm:text-6xl font-semibold">
-                    Sync with Notion
+                <h1 className="!mb-0 text-5xl sm:text-6xl font-semibold hover:cursor-pointer" onClick={() => router.push('/dashboard')}>
+                    Sync with notion
                 </h1>
                 <p className="text-md sm:text-lg text-muted-foreground">
                     Provide your Notion parent page ID and calendar database ID. We'll verify the setup and save it for you.

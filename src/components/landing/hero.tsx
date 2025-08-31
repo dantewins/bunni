@@ -6,6 +6,7 @@ import { Section, Container } from '@/components/ds'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
+import { NOTION_API } from '@/lib/notion'
 
 type HeroProps = {
     user: { id: string; name?: string | null; image?: string | null } | null
@@ -22,7 +23,7 @@ export default function Hero({ user, loading }: HeroProps) {
 
     function connectNotion() {
         try {
-            const u = new URL('https://api.notion.com/v1/oauth/authorize')
+            const u = new URL(NOTION_API + '/oauth/authorize')
             u.searchParams.set('client_id', process.env.NEXT_PUBLIC_NOTION_CLIENT_ID!)
             u.searchParams.set('response_type', 'code')
             u.searchParams.set('owner', 'user')
@@ -48,7 +49,7 @@ export default function Hero({ user, loading }: HeroProps) {
                     variant="outline"
                 >
                     <a className="group flex items-center gap-1" onClick={onClick}>
-                        {user ? 'Go to dashboard' : 'Continue with Notion'}
+                        {user ? 'Go to dashboard' : 'Continue with notion'}
                         <ArrowRight className="ml-1 w-5 transition-all group-hover:-rotate-0 -rotate-45" />
                     </a>
                 </Badge>
@@ -64,10 +65,10 @@ export default function Hero({ user, loading }: HeroProps) {
 
                 <div className="flex gap-4">
                     <Button onClick={onClick} disabled={loading}>
-                        {user ? 'View calendar' : 'Get Started'}
+                        {user ? 'View calendar' : 'Get started'}
                     </Button>
                     <Button variant="outline" onClick={() => scrollToSection('feature')}>
-                        Learn More
+                        Learn more
                     </Button>
                 </div>
             </Container>

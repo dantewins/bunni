@@ -1,10 +1,13 @@
 import { prisma } from "@/lib/prisma"
 
-const NOTION_API = "https://api.notion.com/v1"
+export const NOTION_API = "https://api.notion.com/v1"
 const NOTION_VERSION = "2022-06-28"
 
-export const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone
-const HHMM = /^\d{2}:\d{2}$/
+export const undash = (id: string) => id.replace(/-/g, '').toLowerCase();
+export const dash = (id: string) => {
+    const m =undash(id).match(/^([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})$/i);
+    return m ? `${m[1]}-${m[2]}-${m[3]}-${m[4]}-${m[5]}` : id;
+};
 
 export async function notionFetch<T = any>(token: string, path: string, init?: RequestInit): Promise<T> {
     const res = await fetch(`${NOTION_API}${path}`, {
@@ -124,32 +127,6 @@ export async function withValidNotionToken<T>(
     }
 }
 
-export function dayKeyInTZ(d: Date, tz = TZ) {
-    const parts = new Intl.DateTimeFormat("en-CA", {
-        timeZone: tz,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-    }).formatToParts(d)
-    const get = (t: string) => parts.find((p) => p.type === t)?.value!
-    return `${get("year")}-${get("month")}-${get("day")}`
-}
-
-export function getCurrentDay(tz = TZ) {
-    return dayKeyInTZ(new Date(), tz)
-}
-
-export function buildDueDateProp(dueDate?: string, time?: string) {
-    if (!dueDate && !time) return { date: null }
-
-    const dateStr = dueDate || getCurrentDay()
-
-    if (time && HHMM.test(time)) {
-        return { date: { start: `${dateStr}T${time}:00`, time_zone: TZ } }
-    }
-    return { date: { start: dateStr } }
-}
-
 export async function getOrCreateTasksDb(token: string, parentPageId: string) {
     const search = await notionFetch(token, "/search", {
         method: "POST",
@@ -178,4 +155,31 @@ export async function getOrCreateTasksDb(token: string, parentPageId: string) {
             },
         }),
     })
+}
+
+export async function getAllNotionPages(token: string, dbId: string, filter?: any) {
+    let hasMore = true;
+    let nextCursor: string | undefined;
+    const results: any[] = [];
+    while (hasMore) {
+        const body = {
+            ...(filter ? { filter } : {}),
+            ...(nextCursor ? { start_cursor: nextCursor } : {}),
+        };
+        const res = await notionFetch<any>(token, `/databases/${dash(dbId)}/query`, { method: 'POST', body: JSON.stringify(body) });
+        results.push(...res.results);
+        hasMore = res.has_more;
+        nextCursor = res.next_cursor;
+    }
+    return results;
+}
+
+export async function createNotionPage(token: string, dbId: string, properties: any) {
+    return notionFetch<any>(token, '/pages', {
+        method: 'POST',
+        body: JSON.stringify({
+            parent: { database_id: dash(dbId) },
+            properties,
+        }),
+    });
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { signSession } from "@/lib/auth";
 import { setSessionCookie } from "@/lib/cookies";
+import { NOTION_API } from "@/lib/notion";
 
 export async function GET(req: Request) {
     const url = new URL(req.url);
@@ -10,7 +11,7 @@ export async function GET(req: Request) {
         return NextResponse.json({ success: false, message: "Missing code" }, { status: 400 });
     }
 
-    const tokenRes = await fetch("https://api.notion.com/v1/oauth/token", {
+    const tokenRes = await fetch(NOTION_API + '/oauth/token', {
         method: "POST",
         headers: {
             "Content-Type": "application/json",

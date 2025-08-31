@@ -28,7 +28,7 @@ export default function LandingPage() {
 
     return (
         <>
-            <Hero user={user} loading={loading} onConnectNotion={refresh} />
+            <Hero user={user} loading={loading} />
             <Feature />
             <FAQ />
             <CTA />
