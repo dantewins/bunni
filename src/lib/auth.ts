@@ -1,6 +1,6 @@
 import { cookies } from "next/headers"
 import { SignJWT, jwtVerify } from "jose"
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest } from "next/server"
 
 const secret = new TextEncoder().encode(process.env.APP_JWT_SECRET!)
 const ALG = "HS256"
@@ -19,32 +19,19 @@ export async function verifySession(token: string) {
     return payload as { sub: string; iat: number; exp: number }
 }
 
-export async function requireUserId() {
-    const cookieStore = await cookies()
-    const token = cookieStore.get("app_session")?.value
-    if (!token) throw new Error("UNAUTHENTICATED")
+export async function getUserId(req?: NextRequest, { strict = true }: { strict?: boolean } = {}): Promise<string | null> {
+    const token = req ? req.cookies.get("app_session")?.value : (await cookies()).get("app_session")?.value
 
-    const { sub } = await verifySession(token)
-    return sub as string
-}
-
-export async function optionalUserId() {
-    const cookieStore = await cookies()
-    const token = cookieStore.get("app_session")?.value
-    if (!token) return null
+    if (!token) {
+        if (strict) throw new Error("UNAUTHENTICATED")
+        return null
+    }
 
     try {
         const { sub } = await verifySession(token)
         return sub as string
     } catch {
+        if (strict) throw new Error("UNAUTHENTICATED")
         return null
     }
-}
-
-export async function getCurrentUserId(request: NextRequest) {
-    const token = request.cookies.get("app_session")?.value
-    if (!token) throw new Error("UNAUTHENTICATED")
-
-    const { sub } = await verifySession(token)
-    return sub as string
 }
