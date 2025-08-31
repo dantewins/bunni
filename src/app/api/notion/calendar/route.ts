@@ -6,23 +6,23 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function isYYYYMMDD(s: string) {
-    return /^\d{4}-\d{2}-\d{2}$/.test(s)
+    return /^\d{4}-\d{2}-\d{2}$/.test(s);
 }
 
 function nextDay(yyyyMmDd: string) {
-    const [y, m, d] = yyyyMmDd.split("-").map(Number)
-    const dt = new Date(Date.UTC(y, m - 1, d))
-    dt.setUTCDate(dt.getUTCDate() + 1)
-    const y2 = dt.getUTCFullYear()
-    const m2 = String(dt.getUTCMonth() + 1).padStart(2, "0")
-    const d2 = String(dt.getUTCDate()).padStart(2, "0")
-    return `${y2}-${m2}-${d2}`
+    const [y, m, d] = yyyyMmDd.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + 1);
+    const y2 = dt.getUTCFullYear();
+    const m2 = String(dt.getUTCMonth() + 1).padStart(2, "0");
+    const d2 = String(dt.getUTCDate()).padStart(2, "0");
+    return `${y2}-${m2}-${d2}`;
 }
 
 function getTimezoneOffsetString(yyyyMmDd: string, tz: string): string {
-    const [year, month, day] = yyyyMmDd.split("-").map(Number)
-    const utcTime = Date.UTC(year, month - 1, day, 12, 0, 0, 0)
-    const date = new Date(utcTime)
+    const [year, month, day] = yyyyMmDd.split("-").map(Number);
+    const utcTime = Date.UTC(year, month - 1, day, 12, 0, 0, 0); // Noon to avoid DST edge cases in offset calc
+    const date = new Date(utcTime);
 
     const fmt = (timeZone: string) =>
         new Intl.DateTimeFormat("en", {
@@ -34,65 +34,65 @@ function getTimezoneOffsetString(yyyyMmDd: string, tz: string): string {
             minute: "numeric",
             second: "numeric",
             hour12: false,
-        }).formatToParts(date)
+        }).formatToParts(date);
 
     const partsToUTC = (parts: Intl.DateTimeFormatPart[]) => {
-        const get = (t: string) => Number(parts.find((p) => p.type === t)!.value)
-        const y = get("year")
-        const mo = get("month") - 1
-        const d = get("day")
-        const h = get("hour")
-        const m = get("minute")
-        const s = get("second")
-        return Date.UTC(y, mo, d, h, m, s)
-    }
+        const get = (t: string) => Number(parts.find((p) => p.type === t)!.value);
+        const y = get("year");
+        const mo = get("month") - 1;
+        const d = get("day");
+        const h = get("hour");
+        const m = get("minute");
+        const s = get("second");
+        return Date.UTC(y, mo, d, h, m, s);
+    };
 
-    const utcMs = partsToUTC(fmt("UTC"))
-    const tzMs = partsToUTC(fmt(tz))
+    const utcMs = partsToUTC(fmt("UTC"));
+    const tzMs = partsToUTC(fmt(tz));
 
-    const offsetMin = Math.round((tzMs - utcMs) / 60000)
-    const absOffsetMin = Math.abs(offsetMin)
-    const hours = Math.floor(absOffsetMin / 60)
-    const minutes = absOffsetMin % 60
-    const sign = offsetMin >= 0 ? "+" : "-"
-    return `${sign}${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`
+    const offsetMin = Math.round((tzMs - utcMs) / 60000);
+    const absOffsetMin = Math.abs(offsetMin);
+    const hours = Math.floor(absOffsetMin / 60);
+    const minutes = absOffsetMin % 60;
+    const sign = offsetMin >= 0 ? "+" : "-";
+    return `${sign}${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
 }
 
-function buildDueDateDayFilter(target: string, tz = TZ) {
-    const day = isYYYYMMDD(target) ? target : dayKeyInTZ(new Date(target), tz)
-    const next = nextDay(day)
+function buildDueDateDayFilter(target: string, tz = "America/New_York") {
+    const day = isYYYYMMDD(target) ? target : dayKeyInTZ(new Date(target), tz);
+    const next = nextDay(day);
 
-    const offsetStr = getTimezoneOffsetString(day, tz)
-    const nextOffsetStr = getTimezoneOffsetString(next, tz)
+    const offsetStr = getTimezoneOffsetString(day, tz);
+    const nextOffsetStr = getTimezoneOffsetString(next, tz);
 
-    const localStart = `${day}T00:00:00${offsetStr}`
-    const localEnd = `${next}T00:00:00${nextOffsetStr}`
-    const utcStart = `${day}T00:00:00+00:00`
-    const utcEnd = `${next}T00:00:00+00:00`
+    const localStart = `${day}T00:00:00${offsetStr}`;
+    const localEnd = `${next}T00:00:00${nextOffsetStr}`;
+    const utcStart = `${day}T00:00:00+00:00`;
+    const utcEnd = `${next}T00:00:00+00:00`;
 
     const filterStartStr =
-        new Date(localStart).getTime() <= new Date(utcStart).getTime() ? localStart : utcStart
+        new Date(localStart).getTime() <= new Date(utcStart).getTime() ? localStart : utcStart;
     const filterEndStr =
-        new Date(localEnd).getTime() >= new Date(utcEnd).getTime() ? localEnd : utcEnd
+        new Date(localEnd).getTime() >= new Date(utcEnd).getTime() ? localEnd : utcEnd;
 
     return {
         and: [
             { property: "Due Date", date: { on_or_after: filterStartStr } },
             { property: "Due Date", date: { before: filterEndStr } },
         ],
-    }
+    };
 }
 
 function getLocalDay(dateObj: any, tz: string, targetDay: string) {
-    if (!dateObj || !dateObj.start) return false
-    const start = dateObj.start
+    if (!dateObj || !dateObj.start) return false;
+    const start = dateObj.start;
     if (isYYYYMMDD(start)) {
-        return start === targetDay
+        return start === targetDay;
     } else {
-        const d = new Date(start)
-        if (isNaN(d.getTime())) return false
-        const itemDay = dayKeyInTZ(d, tz)
-        return itemDay === targetDay
+        const d = new Date(start);
+        if (isNaN(d.getTime())) return false;
+        const itemDay = dayKeyInTZ(d, tz);
+        return itemDay === targetDay;
     }
 }
 
@@ -129,10 +129,8 @@ export async function GET(request: Request) {
             const queryBody: any = {}
             let day: string | undefined
             if (dueDateParam) {
-                queryBody.filter = buildDueDateDayFilter(dueDateParam, userTz)
-                day = isYYYYMMDD(dueDateParam)
-                    ? dueDateParam
-                    : dayKeyInTZ(new Date(dueDateParam), userTz)
+                queryBody.filter = buildDueDateDayFilter(dueDateParam, userTz);
+                day = isYYYYMMDD(dueDateParam) ? dueDateParam : dayKeyInTZ(new Date(dueDateParam), userTz);
             }
 
             const calendarQuery = await notionFetch(token, `/databases/${calendarDatabaseId}/query`, {
@@ -143,9 +141,9 @@ export async function GET(request: Request) {
 
             if (day) {
                 calendarResults = calendarResults.filter((page: any) => {
-                    const dueDate = page.properties["Due Date"]?.date
-                    return getLocalDay(dueDate, userTz, day!)
-                })
+                    const dueDate = page.properties["Due Date"]?.date;
+                    return getLocalDay(dueDate, userTz, day);
+                });
             }
 
             const processedCalendar = await Promise.all(
@@ -176,7 +174,7 @@ export async function GET(request: Request) {
                     }
                 })
             )
-            
+
             const tasksQuery = await notionFetch(token, `/databases/${tasksDb.id}/query`, {
                 method: "POST",
                 body: JSON.stringify(queryBody),
