@@ -1,39 +1,35 @@
-import { NextResponse } from "next/server"
-import { requireUserId } from "@/lib/auth"
-import { withValidNotionToken, notionFetch, dayKeyInTZ, getOrCreateTasksDb, TZ } from "@/lib/notion"
-import { isYYYYMMDD, buildDueDateDayFilter, getLocalDay } from "@/lib/date"
+import { NextRequest, NextResponse } from "next/server"
+import { getUserId } from "@/lib/auth"
+import { withValidNotionToken, notionFetch, getOrCreateTasksDb } from "@/lib/notion"
+import { isYYYYMMDD, buildDueDateDayFilter, getLocalDay, dayKeyInTZ, TZ } from "@/lib/date"
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
-    let userId: string
+export async function GET(request: NextRequest) {
     try {
-        userId = await requireUserId()
-    } catch {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+        const userId = await getUserId(request);
 
-    const url = new URL(request.url)
-    const parentPageId = url.searchParams.get("parentPageId")
-    const rawPageId = url.searchParams.get("pageId")
-    const dueDateParam = url.searchParams.get("dueDate")
-    const userTz = (url.searchParams.get("tz") as string) || TZ
+        const url = new URL(request.url)
+        const parentPageId = url.searchParams.get("parentPageId")
+        const rawPageId = url.searchParams.get("pageId")
+        const dueDateParam = url.searchParams.get("dueDate")
+        const userTz = (url.searchParams.get("tz") as string) || TZ
 
-    if (!parentPageId || !rawPageId) {
-        return NextResponse.json(
-            { error: "parentPageId and pageId are required" },
-            { status: 400 }
+        if (!parentPageId || !rawPageId) {
+            return NextResponse.json(
+                { error: "parentPageId and pageId are required" },
+                { status: 400 }
+            )
+        }
+
+        const calendarDatabaseId = rawPageId.replace(
+            /(\w{8})(\w{4})(\w{4})(\w{4})(\w{12})/,
+            "$1-$2-$3-$4-$5"
         )
-    }
 
-    const calendarDatabaseId = rawPageId.replace(
-        /(\w{8})(\w{4})(\w{4})(\w{4})(\w{12})/,
-        "$1-$2-$3-$4-$5"
-    )
 
-    try {
-        const data = await withValidNotionToken(userId, async (token) => {
+        const data = await withValidNotionToken(userId!, async (token) => {
             const tasksDb = await getOrCreateTasksDb(token, parentPageId)
 
             const queryBody: any = {}
@@ -128,6 +124,6 @@ export async function GET(request: Request) {
 
         return NextResponse.json(data, { status: 200 })
     } catch (err: any) {
-        return NextResponse.json({ error: err?.message || "Internal error" }, { status: 500 })
+        return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }

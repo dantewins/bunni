@@ -1,4 +1,5 @@
 export const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone
+const HHMM = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 export function dayKeyInTZ(d: Date, tz = TZ) {
     const parts = new Intl.DateTimeFormat("en-CA", {
@@ -121,4 +122,15 @@ export function getLocalDay(dateObj: any, tz: string, targetDay: string) {
         const itemDay = dayKeyInTZ(d, tz);
         return itemDay === targetDay;
     }
+}
+
+export function buildDueDateProp(dueDate?: string, time?: string) {
+    if (!dueDate && !time) return { date: null }
+
+    const dateStr = dueDate || getCurrentDay()
+
+    if (time && HHMM.test(time)) {
+        return { date: { start: `${dateStr}T${time}:00`, time_zone: TZ } }
+    }
+    return { date: { start: dateStr } }
 }
