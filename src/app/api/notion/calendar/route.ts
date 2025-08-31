@@ -16,68 +16,58 @@ function nextDay(yyyyMmDd: string) {
     return `${y2}-${m2}-${d2}`
 }
 
-function getTimezoneOffsetString(yyyyMmDd: string, tz: string): string {
-    const [year, month, day] = yyyyMmDd.split("-").map(Number)
-    const utcTime = Date.UTC(year, month - 1, day, 12, 0, 0, 0)
-    const date = new Date(utcTime)
+// function getTimezoneOffsetString(yyyyMmDd: string, tz: string): string {
+//     const [year, month, day] = yyyyMmDd.split("-").map(Number)
+//     const utcTime = Date.UTC(year, month - 1, day, 12, 0, 0, 0)
+//     const date = new Date(utcTime)
 
-    const fmt = (timeZone: string) =>
-        new Intl.DateTimeFormat("en", {
-            timeZone,
-            year: "numeric",
-            month: "numeric",
-            day: "numeric",
-            hour: "numeric",
-            minute: "numeric",
-            second: "numeric",
-            hour12: false,
-        }).formatToParts(date)
+//     const fmt = (timeZone: string) =>
+//         new Intl.DateTimeFormat("en", {
+//             timeZone,
+//             year: "numeric",
+//             month: "numeric",
+//             day: "numeric",
+//             hour: "numeric",
+//             minute: "numeric",
+//             second: "numeric",
+//             hour12: false,
+//         }).formatToParts(date)
 
-    const partsToUTC = (parts: Intl.DateTimeFormatPart[]) => {
-        const get = (t: string) => Number(parts.find((p) => p.type === t)!.value)
-        const y = get("year")
-        const mo = get("month") - 1
-        const d = get("day")
-        const h = get("hour")
-        const m = get("minute")
-        const s = get("second")
-        return Date.UTC(y, mo, d, h, m, s)
-    }
+//     const partsToUTC = (parts: Intl.DateTimeFormatPart[]) => {
+//         const get = (t: string) => Number(parts.find((p) => p.type === t)!.value)
+//         const y = get("year")
+//         const mo = get("month") - 1
+//         const d = get("day")
+//         const h = get("hour")
+//         const m = get("minute")
+//         const s = get("second")
+//         return Date.UTC(y, mo, d, h, m, s)
+//     }
 
-    const utcMs = partsToUTC(fmt("UTC"))
-    const tzMs = partsToUTC(fmt(tz))
+//     const utcMs = partsToUTC(fmt("UTC"))
+//     const tzMs = partsToUTC(fmt(tz))
 
-    const offsetMin = Math.round((tzMs - utcMs) / 60000)
-    const absOffsetMin = Math.abs(offsetMin)
-    const hours = Math.floor(absOffsetMin / 60)
-    const minutes = absOffsetMin % 60
-    const sign = offsetMin >= 0 ? "+" : "-"
-    return `${sign}${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`
-}
+//     const offsetMin = Math.round((tzMs - utcMs) / 60000)
+//     const absOffsetMin = Math.abs(offsetMin)
+//     const hours = Math.floor(absOffsetMin / 60)
+//     const minutes = absOffsetMin % 60
+//     const sign = offsetMin >= 0 ? "+" : "-"
+//     return `${sign}${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`
+// }
 
 function buildDueDateDayFilter(target: string, tz = TZ) {
-    const day = isYYYYMMDD(target) ? target : dayKeyInTZ(new Date(target), tz)
-    const next = nextDay(day)
+    const day = isYYYYMMDD(target) ? target : dayKeyInTZ(new Date(target), tz);
+    const next = nextDay(day);
 
-    const offsetStr = getTimezoneOffsetString(day, tz)
-    const nextOffsetStr = getTimezoneOffsetString(next, tz)
-
-    const localStart = `${day}T00:00:00${offsetStr}`
-    const localEnd = `${next}T00:00:00${nextOffsetStr}`
-    const utcStart = `${day}T00:00:00+00:00`
-    const utcEnd = `${next}T00:00:00+00:00`
-
-    const filterStartStr =
-        new Date(localStart).getTime() <= new Date(utcStart).getTime() ? localStart : utcStart
-    const filterEndStr =
-        new Date(localEnd).getTime() >= new Date(utcEnd).getTime() ? localEnd : utcEnd
+    const filterStartStr = `${day}T00:00:00+14:00`;
+    const filterEndStr = `${next}T00:00:00-12:00`;
 
     return {
         and: [
             { property: "Due Date", date: { on_or_after: filterStartStr } },
             { property: "Due Date", date: { before: filterEndStr } },
         ],
-    }
+    };
 }
 
 function getLocalDay(dateObj: any, tz: string, targetDay: string) {
@@ -173,7 +163,7 @@ export async function GET(request: Request) {
                     }
                 })
             )
-            
+
             const tasksQuery = await notionFetch(token, `/databases/${tasksDb.id}/query`, {
                 method: "POST",
                 body: JSON.stringify(queryBody),
