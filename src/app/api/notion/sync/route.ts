@@ -7,10 +7,14 @@ export async function GET(request: NextRequest) {
     try {
         const userId = await getUserId(request);
 
+        if (!userId) throw new Error('Unauthorized');
+
         const connection = await prisma.notionConnection.findUnique({
             where: { userId },
             select: { parentPageId: true, calendarDatabaseId: true },
         });
+
+        if (!connection?.parentPageId?.trim() || !connection?.calendarDatabaseId?.trim()) return NextResponse.json({}, { status: 401 });
 
         return NextResponse.json({
             parentPageId: connection?.parentPageId || '',
@@ -24,6 +28,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const userId = await getUserId(request);
+
+        if (!userId) throw new Error('Unauthorized');
 
         const connection = await prisma.notionConnection.findUnique({ where: { userId } });
 
