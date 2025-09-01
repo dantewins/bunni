@@ -30,6 +30,7 @@ export default function CalendarPage() {
     const [showForm, setShowForm] = useState(false);
     const [initializing, setInitializing] = useState(true);
     const [ids, setIds] = useState<Ids>({});
+    const [linkLoading, setLinkLoading] = useState(false);
 
     const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -193,6 +194,28 @@ export default function CalendarPage() {
         }
     };
 
+    const canvasLink = async () => {
+        setLinkLoading(true);
+        try {
+            const res = await fetch('/api/canvas/link', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.error || 'Failed to link Canvas');
+            }
+
+            toast.success('Linked successfully!');
+        } catch (err: any) {
+            toast.error(err.message);
+        } finally {
+            setLinkLoading(false);
+        }
+    }
+
     if (initializing) return null;
 
     return (
@@ -206,7 +229,7 @@ export default function CalendarPage() {
                         {monthLabel}
                     </h1>
                     <div className="sm:h-12 h-8">
-                        <Button variant="outline" className="h-full !px-1 sm:!px-3" onClick={() => setShowForm(true)}>
+                        <Button variant="outline" className="h-full !px-1 sm:!px-3" onClick={canvasLink} disabled={linkLoading}>
                             <CalendarSync className="!h-5 !w-5 sm:!h-6 sm:!w-6" />
                         </Button>
                         <Button variant="outline" className="h-full !px-1 sm:!px-3 ml-3" onClick={() => setShowForm(true)} disabled={true}>

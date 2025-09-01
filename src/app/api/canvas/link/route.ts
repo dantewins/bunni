@@ -13,15 +13,16 @@ export async function POST(request: NextRequest) {
     try {
         const userId = await getUserId(request);
 
-        const notionConn = await prisma.notionConnection.findUnique({
+        const connection = await prisma.notionConnection.findUnique({
             where: { userId },
             select: { parentPageId: true, calendarDatabaseId: true },
         });
-        if (!notionConn) {
+
+        if (!connection) {
             return NextResponse.json({ error: 'Missing Notion connection' }, { status: 401 });
         }
 
-        const { calendarDatabaseId } = notionConn;
+        const { calendarDatabaseId } = connection;
 
         if (!calendarDatabaseId) {
             return NextResponse.json({ error: 'Notion database not configured' }, { status: 400 });
@@ -29,88 +30,95 @@ export async function POST(request: NextRequest) {
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
+        let assignments: any[] = [];
+
         await withValidNotionToken(userId!, async (token) => {
             const courses = await getAllCanvas(userId!, '/courses', 'enrollment_state=active');
+
+            console.log(courses)
 
             for (const course of courses) {
                 if (!course.id || !course.name) continue;
 
-                const assignments = await getAllCanvas(userId!, `/courses/${course.id}/assignments`);
+                assignments.push(await getAllCanvas(userId!, `/courses/${course.id}/assignments`));
 
-                for (const ass of assignments) {
-                    if (!ass.id || !ass.name) continue;
+                // for (const ass of assignments) {
+                //     if (!ass.id || !ass.name) continue;
 
-                    const existing = await getAllNotionPages(token, calendarDatabaseId, {
-                        property: 'Source ID',
-                        rich_text: { equals: `canvas:${ass.id}` },
-                    });
+                //     const existing = await getAllNotionPages(token, calendarDatabaseId, {
+                //         property: 'Source ID',
+                //         rich_text: { equals: `canvas:${ass.id}` },
+                //     });
 
-                    if (existing.length > 0) continue;
+                //     if (existing.length > 0) continue;
 
-                    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-                    const descText = ass.description ? stripHtml(ass.description) : '';
-                    const prompt = `
-                        Analyze the following assignment:
+                //     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+                //     const descText = ass.description ? stripHtml(ass.description) : '';
+                //     const prompt = `
+                //         Analyze the following assignment:
 
-                        Course: ${course.name}
+                //         Course: ${course.name}
 
-                        Name: ${ass.name}
+                //         Name: ${ass.name}
 
-                        Description: ${descText}
+                //         Description: ${descText}
 
-                        Submission types: ${ass.submission_types?.join(', ') || 'none'}
+                //         Submission types: ${ass.submission_types?.join(', ') || 'none'}
 
-                        Due at: ${ass.due_at || 'no due date'}
+                //         Due at: ${ass.due_at || 'no due date'}
 
-                        Provide the following in JSON format only:
+                //         Provide the following in JSON format only:
 
-                        {
-                            "name": "A concise title for the task, incorporating course if needed",
-                            "description": "A short summary of the assignment, max 100 characters",
-                            "subject": "The subject or category of the assignment",
-                            "type": "The type of assignment, e.g., Quiz, Essay, Project, Homework, Exam"
-                        }
-                    `;
-                    const result = await model.generateContent(prompt);
-                    const aiText = result.response.text().trim();
-                    let aiData;
-                    try {
-                        const jsonStr = aiText.replace(/^```json\n|\n```$/g, '');
-                        aiData = JSON.parse(jsonStr);
-                    } catch (e) {
-                        console.error('Failed to parse AI response:', aiText);
-                        // Fallback to basic values
-                        aiData = {
-                            name: `${course.name}: ${ass.name}`,
-                            description: descText.slice(0, 200) + (descText.length > 200 ? '...' : ''),
-                            subject: course.name,
-                            type: ass.submission_types?.includes('online_quiz') ? 'Assessment' : 'Assignment'
-                        };
-                    }
+                //         {
+                //             "name": "A concise title for the task, incorporating course if needed",
+                //             "description": "A short summary of the assignment, max 100 characters",
+                //             "subject": "The subject or category of the assignment",
+                //             "type": "The type of task, strictly either assignment or assessment"
+                //         }
+                //     `;
+                //     const result = await model.generateContent(prompt);
+                //     const aiText = result.response.text().trim();
+                //     let aiData;
+                //     try {
+                //         const jsonStr = aiText.replace(/^```json\n|\n```$/g, '');
+                //         aiData = JSON.parse(jsonStr);
+                //     } catch (e) {
+                //         console.error('Failed to parse AI response:', aiText);
 
-                    const { name, description, subject, type } = aiData;
+                //         aiData = {
+                //             name: `${course.name}: ${ass.name}`,
+                //             description: descText.slice(0, 200) + (descText.length > 200 ? '...' : ''),
+                //             subject: course.name,
+                //             type: ass.submission_types?.includes('online_quiz') ? 'Assessment' : 'Assignment'
+                //         };
+                //     }
 
-                    const dueDateProp = ass.due_at ? { date: { start: ass.due_at } } : { date: null };
+                //     const { name, description, subject, type } = aiData;
 
-                    const descriptionContent = [
-                        { type: 'text', text: { content: description + '\n\n' } },
-                        { type: 'text', text: { content: ass.html_url, link: { url: ass.html_url } } }
-                    ];
+                //     const dueDateProp = ass.due_at ? { date: { start: ass.due_at } } : { date: null };
 
-                    await createNotionPage(token, calendarDatabaseId, {
-                        Name: { title: [{ type: 'text', text: { content: name } }] },
-                        'Due Date': dueDateProp,
-                        Done: { checkbox: false },
-                        Description: { rich_text: descriptionContent },
-                        Subject: { select: { name: subject } },
-                        'Source ID': { rich_text: [{ type: 'text', text: { content: `canvas:${ass.id}` } }] },
-                        Type: { select: { name: type } },
-                    });
-                }
+                //     const descriptionContent = [
+                //         { type: 'text', text: { content: description + '\n\n' } },
+                //         { type: 'text', text: { content: ass.html_url, link: { url: ass.html_url } } }
+                //     ];
+
+                //     await createNotionPage(token, calendarDatabaseId, {
+                //         Name: { title: [{ type: 'text', text: { content: name } }] },
+                //         'Due Date': dueDateProp,
+                //         Done: { checkbox: false },
+                //         Description: { rich_text: descriptionContent },
+                //         Subject: { select: { name: subject } },
+                //         'Source ID': { rich_text: [{ type: 'text', text: { content: `canvas:${ass.id}` } }] },
+                //         Type: { select: { name: type } },
+                //     });
+                // }
             }
         });
 
-        return NextResponse.json({ ok: true }, { status: 200 });
+        console.log(assignments)
+
+        return NextResponse.json({ assignments: assignments }, { status: 200 });
+        // return NextResponse.json({ ok: true }, { status: 200 });
     } catch (err: any) {
         return NextResponse.json({ error: err.message }, { status: 500 });
     }

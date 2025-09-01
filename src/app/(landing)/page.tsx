@@ -12,7 +12,7 @@ import { useAuth } from '@/hooks/useAuth'
 
 export default function LandingPage() {
     const [visible, setVisible] = useState(true)
-    const { user, loading, refresh } = useAuth()
+    const { user, loading } = useAuth()
 
     const scrollDown = () =>
         document?.getElementById('feature')?.scrollIntoView({ behavior: 'smooth', block: 'center' })

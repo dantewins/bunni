@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 export default function SyncPage() {
     const router = useRouter();
-    const { user, loading: authLoading, refresh } = useAuth();
+    const { user, loading: authLoading } = useAuth();
     const [loading, setLoading] = useState(false);
     const [connectionLoading, setConnectionLoading] = useState(true);
     const [defaultValues, setDefaultValues] = useState<Partial<{ parentPageId: string; calendarDatabaseId: string }>>({});
