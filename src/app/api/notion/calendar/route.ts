@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getUserId } from "@/lib/auth"
-import { withValidNotionToken, notionFetch, getOrCreateTasksDb } from "@/lib/notion"
+import { withValidNotionToken, notionFetch, fetchNotionDb } from "@/lib/notion"
 import { isYYYYMMDD, buildDueDateDayFilter, getLocalDay, dayKeyInTZ, TZ } from "@/lib/date"
 
 export const runtime = "nodejs";
@@ -9,6 +9,8 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
     try {
         const userId = await getUserId(request);
+
+        if (!userId) throw new Error('Unauthorized');
 
         const url = new URL(request.url)
         const parentPageId = url.searchParams.get("parentPageId")
@@ -29,8 +31,8 @@ export async function GET(request: NextRequest) {
         )
 
 
-        const data = await withValidNotionToken(userId!, async (token) => {
-            const tasksDb = await getOrCreateTasksDb(token, parentPageId)
+        const data = await withValidNotionToken(userId, async (token) => {
+            const tasksDb = await fetchNotionDb(token, "Tasks")
 
             const queryBody: any = {}
             let day: string | undefined

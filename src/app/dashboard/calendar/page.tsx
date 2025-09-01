@@ -40,7 +40,8 @@ export default function CalendarPage() {
             try {
                 const res = await fetch("/api/notion/sync", { method: "GET", cache: "no-store", credentials: "include" });
                 if (res.status === 401) {
-                    router.push("/");
+                    toast.error("Please sync page IDs first")
+                    router.push("/dashboard/sync");
                     return;
                 }
                 const data = await res.json();
@@ -197,7 +198,7 @@ export default function CalendarPage() {
     const canvasLink = async () => {
         setLinkLoading(true);
         try {
-            const res = await fetch('/api/canvas/link', {
+            const res = await fetch(`/api/canvas/link?parentPageId=${ids.parentPageId}&pageId=${ids.calendarDatabaseId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
             });
@@ -208,9 +209,12 @@ export default function CalendarPage() {
                 throw new Error(data.error || 'Failed to link Canvas');
             }
 
-            toast.success('Linked successfully!');
+            toast.success(data.amountSynced > 0 ? `Imported ${data.amountSynced} tasks from Canvas successfully!` : 'Already up to date');
         } catch (err: any) {
             toast.error(err.message);
+            if (err.message === 'Invalid setup') {
+                router.push('/dashboard/setup')
+            }
         } finally {
             setLinkLoading(false);
         }

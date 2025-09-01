@@ -1,5 +1,14 @@
 import { prisma } from "@/lib/prisma";
 
+async function fetchCanvasFromPrisma() {
+    // const connection = await prisma.canvasConnection.findUnique({ where: { userId } });
+    // if (!connection) throw new Error('No Canvas connection found');
+
+    // return connection
+
+    return 'https://pinescharter.instructure.com'
+}
+
 async function canvasFetch(userId: string, path: string, init?: RequestInit) {
     // const connection = await prisma.canvasConnection.findUnique({ where: { userId } });
     // if (!connection) throw new Error('No Canvas connection found');
@@ -60,4 +69,4 @@ async function getAllCanvas(userId: string, path: string, params: string = '') {
     return results;
 }
 
-export { canvasFetch, getAllCanvas };
+export { fetchCanvasFromPrisma, canvasFetch, getAllCanvas };

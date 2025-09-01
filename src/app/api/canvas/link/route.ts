@@ -1,124 +1,127 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getUserId } from "@/lib/auth"
-import { withValidNotionToken, getAllNotionPages, createNotionPage } from "@/lib/notion"
+import { withValidNotionToken, getAllNotionPages, createNotionObject, fetchNotionDb } from "@/lib/notion"
 import { prisma } from "@/lib/prisma"
-import { getAllCanvas } from "@/lib/canvas"
+import { getAllCanvas, canvasFetch, fetchCanvasFromPrisma } from "@/lib/canvas"
 import { GoogleGenerativeAI } from "@google/generative-ai"
-
-function stripHtml(html: string) {
-    return html.replace(/<[^>]*>?/gm, '');
-}
 
 export async function POST(request: NextRequest) {
     try {
         const userId = await getUserId(request);
 
-        const connection = await prisma.notionConnection.findUnique({
-            where: { userId },
-            select: { parentPageId: true, calendarDatabaseId: true },
-        });
+        if (!userId) throw new Error('Unauthorized');
 
-        if (!connection) {
-            return NextResponse.json({ error: 'Missing Notion connection' }, { status: 401 });
-        }
+        const url = new URL(request.url)
+        const parentPageId = url.searchParams.get("parentPageId")
+        const rawPageId = url.searchParams.get("pageId")
 
-        const { calendarDatabaseId } = connection;
-
-        if (!calendarDatabaseId) {
-            return NextResponse.json({ error: 'Notion database not configured' }, { status: 400 });
+        if (!parentPageId || !rawPageId) {
+            return NextResponse.json(
+                { error: "parentPageId and pageId are required" },
+                { status: 400 }
+            )
         }
 
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-        let assignments: any[] = [];
+        let amountSynced = 0;
 
-        await withValidNotionToken(userId!, async (token) => {
-            const courses = await getAllCanvas(userId!, '/courses', 'enrollment_state=active');
+        await withValidNotionToken(userId, async (token) => {
+            const courses = await getAllCanvas(userId, '/courses', 'enrollment_state=active');
+            const courseMap = new Map(courses.map((c: any) => [c.id, c.name]));
 
-            console.log(courses)
+            const plannerItems = await getAllCanvas(userId, '/planner/items');
 
-            for (const course of courses) {
-                if (!course.id || !course.name) continue;
+            const filteredByPlannerOverride = plannerItems.filter(item =>
+                !item.planner_override || item.planner_override.marked_complete === false
+            );
 
-                assignments.push(await getAllCanvas(userId!, `/courses/${course.id}/assignments`));
+            const finalFilteredItems = filteredByPlannerOverride.filter(item =>
+                item.submissions && item.submissions.submitted === false && item.plannable_type === 'assignment'
+            );
 
-                // for (const ass of assignments) {
-                //     if (!ass.id || !ass.name) continue;
+            let subjectsDb = await fetchNotionDb(token, "Subjects");
+            if (!subjectsDb) return NextResponse.json({ error: 'Invalid setup' }, { status: 400 })
 
-                //     const existing = await getAllNotionPages(token, calendarDatabaseId, {
-                //         property: 'Source ID',
-                //         rich_text: { equals: `canvas:${ass.id}` },
-                //     });
+            for (const item of finalFilteredItems) {
+                const ass = item.plannable;
+                const courseName = courseMap.get(item.course_id) || 'Unknown';
 
-                //     if (existing.length > 0) continue;
+                ass.id = item.plannable_id;
+                ass.html_url = item.html_url;
 
-                //     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-                //     const descText = ass.description ? stripHtml(ass.description) : '';
-                //     const prompt = `
-                //         Analyze the following assignment:
+                const fullPlannable = await canvasFetch(userId!, `/courses/${item.course_id}/assignments/${item.plannable_id}`);
 
-                //         Course: ${course.name}
+                const existing = await getAllNotionPages(token, rawPageId, {
+                    property: 'Id',
+                    number: { equals: fullPlannable.id },
+                });
 
-                //         Name: ${ass.name}
+                if (existing.length > 0) continue;
 
-                //         Description: ${descText}
+                const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+                const descText = fullPlannable.description ? fullPlannable.description.replace(/<[^>]*>?/gm, '') : '';
 
-                //         Submission types: ${ass.submission_types?.join(', ') || 'none'}
+                const prompt = `
+                    Analyze the following assignment:
 
-                //         Due at: ${ass.due_at || 'no due date'}
+                    Course: ${courseName}
+                    Name: ${fullPlannable.name || fullPlannable.title || ass.name || ass.title}
+                    Description: ${descText}
+                    Due at: ${ass.due_at || 'no due date'}
 
-                //         Provide the following in JSON format only:
+                    Provide the following in JSON format only. Do not add any extra text, explanations, or content outside the JSON object.
 
-                //         {
-                //             "name": "A concise title for the task, incorporating course if needed",
-                //             "description": "A short summary of the assignment, max 100 characters",
-                //             "subject": "The subject or category of the assignment",
-                //             "type": "The type of task, strictly either assignment or assessment"
-                //         }
-                //     `;
-                //     const result = await model.generateContent(prompt);
-                //     const aiText = result.response.text().trim();
-                //     let aiData;
-                //     try {
-                //         const jsonStr = aiText.replace(/^```json\n|\n```$/g, '');
-                //         aiData = JSON.parse(jsonStr);
-                //     } catch (e) {
-                //         console.error('Failed to parse AI response:', aiText);
+                    {
 
-                //         aiData = {
-                //             name: `${course.name}: ${ass.name}`,
-                //             description: descText.slice(0, 200) + (descText.length > 200 ? '...' : ''),
-                //             subject: course.name,
-                //             type: ass.submission_types?.includes('online_quiz') ? 'Assessment' : 'Assignment'
-                //         };
-                //     }
+                        "type": "The type of task, strictly either 'assignment' or 'assessment' (Progress checks are assignments)"
+                    }
+                `;
 
-                //     const { name, description, subject, type } = aiData;
+                const result = await model.generateContent(prompt)
+                const aiText = result.response.text().trim()
 
-                //     const dueDateProp = ass.due_at ? { date: { start: ass.due_at } } : { date: null };
+                let aiData;
 
-                //     const descriptionContent = [
-                //         { type: 'text', text: { content: description + '\n\n' } },
-                //         { type: 'text', text: { content: ass.html_url, link: { url: ass.html_url } } }
-                //     ];
+                try {
+                    const jsonStr = aiText.replace(/^```json\n|\n```$/g, '');
+                    aiData = JSON.parse(jsonStr);
+                } catch (e) {
+                    console.error('Failed to parse AI response:', aiText);
 
-                //     await createNotionPage(token, calendarDatabaseId, {
-                //         Name: { title: [{ type: 'text', text: { content: name } }] },
-                //         'Due Date': dueDateProp,
-                //         Done: { checkbox: false },
-                //         Description: { rich_text: descriptionContent },
-                //         Subject: { select: { name: subject } },
-                //         'Source ID': { rich_text: [{ type: 'text', text: { content: `canvas:${ass.id}` } }] },
-                //         Type: { select: { name: type } },
-                //     });
-                // }
+                    return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 });
+                }
+
+                const { type } = aiData;
+
+                const dueDateProp = ass.due_at ? { date: { start: ass.due_at } } : { date: null };
+
+                const baseURL = await fetchCanvasFromPrisma();
+                const newURL = baseURL + ass.html_url
+
+                const descriptionContent = [
+                    { type: 'text', text: { content: "Canvas link", link: { url: newURL } } }
+                ];
+
+                const subjectPages = await getAllNotionPages(token, subjectsDb.id, {
+                    property: 'Canvas ID',
+                    number: { equals: item.course_id },
+                });
+
+                await createNotionObject(token, rawPageId, fullPlannable.name, {
+                    'Due Date': dueDateProp,
+                    Done: { checkbox: false },
+                    Description: { rich_text: descriptionContent },
+                    Subject: { relation: [{ id: subjectPages[0].id }] },
+                    Id: { number: fullPlannable.id },
+                    Type: { select: { name: type } },
+                });
+
+                amountSynced++;
             }
         });
 
-        console.log(assignments)
-
-        return NextResponse.json({ assignments: assignments }, { status: 200 });
-        // return NextResponse.json({ ok: true }, { status: 200 });
+        return NextResponse.json({ ok: true, amountSynced }, { status: 200 });
     } catch (err: any) {
         return NextResponse.json({ error: err.message }, { status: 500 });
     }

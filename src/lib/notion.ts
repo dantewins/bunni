@@ -5,7 +5,7 @@ const NOTION_VERSION = "2022-06-28"
 
 export const undash = (id: string) => id.replace(/-/g, '').toLowerCase();
 export const dash = (id: string) => {
-    const m =undash(id).match(/^([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})$/i);
+    const m = undash(id).match(/^([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})$/i);
     return m ? `${m[1]}-${m[2]}-${m[3]}-${m[4]}-${m[5]}` : id;
 };
 
@@ -127,36 +127,6 @@ export async function withValidNotionToken<T>(
     }
 }
 
-export async function getOrCreateTasksDb(token: string, parentPageId: string) {
-    const search = await notionFetch(token, "/search", {
-        method: "POST",
-        body: JSON.stringify({
-            query: "Tasks",
-            filter: { value: "database", property: "object" },
-            sort: { direction: "descending", timestamp: "last_edited_time" },
-        }),
-    })
-
-    const existing = (search as any).results?.find(
-        (r: any) => r.object === "database" && (r.title?.[0]?.plain_text || "").trim() === "Tasks"
-    )
-    if (existing) return existing
-
-    return notionFetch(token, "/databases", {
-        method: "POST",
-        body: JSON.stringify({
-            parent: { type: "page_id", page_id: parentPageId },
-            title: [{ type: "text", text: { content: "Tasks" } }],
-            properties: {
-                Name: { title: {} },
-                Description: { rich_text: {} },
-                "Due Date": { date: {} },
-                Done: { checkbox: {} },
-            },
-        }),
-    })
-}
-
 export async function getAllNotionPages(token: string, dbId: string, filter?: any) {
     let hasMore = true;
     let nextCursor: string | undefined;
@@ -174,12 +144,55 @@ export async function getAllNotionPages(token: string, dbId: string, filter?: an
     return results;
 }
 
-export async function createNotionPage(token: string, dbId: string, properties: any) {
-    return notionFetch<any>(token, '/pages', {
+export async function fetchNotionPage(token: string, pageId: string) {
+    return notionFetch<any>(token, `/pages/${dash(pageId)}`, { method: "GET" })
+}
+
+export async function createNotionObject(token: string, parentId: string, title: string, properties: any, isDb: boolean = false) {
+    const isParentDb = !isDb;
+    const endpoint = isDb ? '/databases' : '/pages';
+    const parentType = isParentDb ? 'database_id' : 'page_id';
+    const parentKey = isParentDb ? 'database_id' : 'page_id';
+
+    const body: any = {
+        parent: { type: parentType, [parentKey]: dash(parentId) },
+        properties,
+    };
+
+    if (isDb) {
+        body.title = [{ type: "text", text: { content: title } }];
+    } else {
+        if (!properties.Name) {
+            properties.Name = { title: [{ type: "text", text: { content: title } }] };
+        }
+    }
+
+    return notionFetch<any>(token, endpoint, {
         method: 'POST',
-        body: JSON.stringify({
-            parent: { database_id: dash(dbId) },
-            properties,
-        }),
+        body: JSON.stringify(body),
     });
+}
+
+export async function fetchNotionDb(token: string, identifier: string): Promise<any | null> {
+    const isId = /^[0-9a-fA-F]{32}$|^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(identifier);
+
+    if (isId) {
+        const dbId = dash(identifier)
+        return notionFetch<any>(token, `/databases/${dbId}`, { method: "GET" });
+    } else {
+        const search = await notionFetch(token, "/search", {
+            method: "POST",
+            body: JSON.stringify({
+                query: identifier,
+                filter: { value: "database", property: "object" },
+                sort: { direction: "descending", timestamp: "last_edited_time" },
+            }),
+        });
+
+        const existing = (search as any).results?.find(
+            (r: any) => r.object === "database" && (r.title?.[0]?.plain_text || "").trim() === identifier
+        );
+
+        return existing || null;
+    }
 }

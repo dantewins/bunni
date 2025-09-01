@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getUserId } from "@/lib/auth"
-import { withValidNotionToken, notionFetch, getOrCreateTasksDb } from "@/lib/notion"
+import { withValidNotionToken, notionFetch, dash, fetchNotionDb, createNotionObject } from "@/lib/notion"
 import { buildDueDateProp } from "@/lib/date"
 
 export async function POST(request: NextRequest) {
     try {
         const userId = await getUserId(request);
+
+        if (!userId) throw new Error('Unauthorized');
 
         const { title, description, dueDate, time, parentPageId } = await request.json()
 
@@ -15,22 +17,24 @@ export async function POST(request: NextRequest) {
                 { status: 400 }
             )
         }
-        const page = await withValidNotionToken(userId!, async (token) => {
-            const db = await getOrCreateTasksDb(token, parentPageId)
+        const page = await withValidNotionToken(userId, async (token) => {
+            let db = await fetchNotionDb(token, "Tasks")
 
-            return notionFetch(token, "/pages", {
-                method: "POST",
-                body: JSON.stringify({
-                    parent: { database_id: db.id },
-                    properties: {
-                        Name: { title: [{ type: "text", text: { content: String(title) } }] },
-                        Description: description
-                            ? { rich_text: [{ type: "text", text: { content: String(description) } }] }
-                            : { rich_text: [] },
-                        "Due Date": buildDueDateProp(dueDate, time),
-                        Done: { checkbox: false },
-                    },
-                }),
+            if (!db) {
+                db = await createNotionObject(token, parentPageId, "Tasks", {
+                    Name: { title: {} },
+                    Description: { rich_text: {} },
+                    "Due Date": { date: {} },
+                    Done: { checkbox: {} },
+                }, true)
+            }
+
+            return createNotionObject(token, db.id, String(title), {
+                Description: description
+                    ? { rich_text: [{ type: "text", text: { content: String(description) } }] }
+                    : { rich_text: [] },
+                "Due Date": buildDueDateProp(dueDate, time),
+                Done: { checkbox: false },
             })
         })
 
