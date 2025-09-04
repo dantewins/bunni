@@ -11,11 +11,12 @@ model User {
   id           String   @id @default(cuid())
   name         String?
   image        String?
+  hasCompletedSetup Boolean @default(false)
   notionUserId String?  @unique
-  // You might not get an email from Notion; key by id
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   notion       NotionConnection?
+  canvas CanvasConnection?
 }
 
 model NotionConnection {
@@ -32,4 +33,14 @@ model NotionConnection {
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notion_connections")
+}
+
+model CanvasConnection {
+  userId String @id @map("user_id")
+  baseUrl String @map("base_url")
+  apiKey String @map("api_key")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("canvas_connections")
 }
