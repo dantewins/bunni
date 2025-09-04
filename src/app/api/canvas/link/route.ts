@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getUserId } from "@/lib/auth"
-import { withValidNotionToken, getAllNotionPages, createNotionObject, fetchNotionDb } from "@/lib/notion"
-import { prisma } from "@/lib/prisma"
+import { withValidNotionToken, getAllNotionPages, createNotionObject, fetchNotionDb, dash, notionFetch } from "@/lib/notion"
 import { getAllCanvas, canvasFetch, fetchCanvasFromPrisma } from "@/lib/canvas"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 
@@ -40,6 +39,8 @@ export async function POST(request: NextRequest) {
                 item.submissions && item.submissions.submitted === false && item.plannable_type === 'assignment'
             );
 
+            const unfinishedIds = new Set(finalFilteredItems.map(item => item.plannable_id));
+
             let subjectsDb = await fetchNotionDb(token, "Subjects");
             if (!subjectsDb) return NextResponse.json({ error: 'Invalid setup' }, { status: 400 })
 
@@ -57,7 +58,9 @@ export async function POST(request: NextRequest) {
                     number: { equals: fullPlannable.id },
                 });
 
-                if (existing.length > 0) continue;
+                if (existing.length > 0) {
+                    continue;
+                }
 
                 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
                 const descText = fullPlannable.description ? fullPlannable.description.replace(/<[^>]*>?/gm, '') : '';
@@ -73,8 +76,8 @@ export async function POST(request: NextRequest) {
                     Provide the following in JSON format only. Do not add any extra text, explanations, or content outside the JSON object.
 
                     {
-
-                        "type": "The type of task, strictly either 'assignment' or 'assessment' (Progress checks are assignments)"
+                        "type": "The type of task, strictly either 'assignment' or 'assessment' (Progress checks are assignments)",
+                        "name": "A nicely formatted version of the assignment name with proper capitalization (e.g., 'Point of View Notes' instead of 'point of view notes') and added spaces where appropriate (e.g., 'HW #7' instead of 'HW#7')"
                     }
                 `;
 
@@ -92,7 +95,7 @@ export async function POST(request: NextRequest) {
                     return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 });
                 }
 
-                const { type } = aiData;
+                const { type, name } = aiData;
 
                 const dueDateProp = ass.due_at ? { date: { start: ass.due_at } } : { date: null };
 
@@ -108,7 +111,7 @@ export async function POST(request: NextRequest) {
                     number: { equals: item.course_id },
                 });
 
-                await createNotionObject(token, rawPageId, fullPlannable.name, {
+                await createNotionObject(token, rawPageId, name, {
                     'Due Date': dueDateProp,
                     Done: { checkbox: false },
                     Description: { rich_text: descriptionContent },
@@ -118,6 +121,29 @@ export async function POST(request: NextRequest) {
                 });
 
                 amountSynced++;
+            }
+
+            const uncheckedAssignments = await getAllNotionPages(token, rawPageId, {
+                filter: {
+                    property: 'Done',
+                    checkbox: { equals: false }
+                }
+            });
+
+            for (const page of uncheckedAssignments) {
+                const assignmentId = page.properties.Id?.number;
+                if (assignmentId && !unfinishedIds.has(assignmentId)) {
+                    await notionFetch(token, `/pages/${dash(page.id)}`, {
+                        method: 'PATCH',
+                        body: JSON.stringify({
+                            properties: {
+                                Done: { checkbox: true }
+                            }
+                        })
+                    });
+
+                    amountSynced++;
+                }
             }
         });
 

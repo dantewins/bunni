@@ -209,7 +209,7 @@ export default function CalendarPage() {
                 throw new Error(data.error || 'Failed to link Canvas');
             }
 
-            toast.success(data.amountSynced > 0 ? `Imported ${data.amountSynced} tasks from Canvas successfully!` : 'Already up to date');
+            toast.success(data.amountSynced > 0 ? `Imported ${data.amountSynced} task${data.amountSynced > 1 ? 's' : ''} from Canvas successfully!` : 'Already up to date');
         } catch (err: any) {
             toast.error(err.message);
             if (err.message === 'Invalid setup') {
