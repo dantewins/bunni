@@ -124,10 +124,8 @@ export async function POST(request: NextRequest) {
             }
 
             const uncheckedAssignments = await getAllNotionPages(token, rawPageId, {
-                filter: {
-                    property: 'Done',
-                    checkbox: { equals: false }
-                }
+                property: 'Done',
+                checkbox: { equals: false }
             });
 
             for (const page of uncheckedAssignments) {
