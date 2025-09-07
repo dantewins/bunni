@@ -148,7 +148,7 @@ export async function fetchNotionPage(token: string, pageId: string) {
     return notionFetch<any>(token, `/pages/${dash(pageId)}`, { method: "GET" })
 }
 
-export async function createNotionObject(token: string, parentId: string, title: string, properties: any, isDb: boolean = false) {
+export async function createNotionObject(token: string, parentId: string, title: string, properties: any, isDb: boolean = false, icon?: any) {
     const isParentDb = !isDb;
     const endpoint = isDb ? '/databases' : '/pages';
     const parentType = isParentDb ? 'database_id' : 'page_id';
@@ -164,6 +164,10 @@ export async function createNotionObject(token: string, parentId: string, title:
     } else {
         if (!properties.Name) {
             properties.Name = { title: [{ type: "text", text: { content: title } }] };
+        }
+
+        if (icon) {
+            body.icon = icon;
         }
     }
 

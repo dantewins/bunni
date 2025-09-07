@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getUserId } from "@/lib/auth"
-import { withValidNotionToken, notionFetch, dash, fetchNotionDb, createNotionObject } from "@/lib/notion"
+import { withValidNotionToken, fetchNotionDb, createNotionObject } from "@/lib/notion"
 import { buildDueDateProp } from "@/lib/date"
 
 export async function POST(request: NextRequest) {
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
                     : { rich_text: [] },
                 "Due Date": buildDueDateProp(dueDate, time),
                 Done: { checkbox: false },
-            })
+            }, false, { type: "external", external: { url: "https://www.notion.so/icons/checkmark-square_gray.svg" } })
         })
 
         return NextResponse.json({ ok: true, page }, { status: 200 })
