@@ -40,7 +40,7 @@ export default function SetupPage() {
     return (
         <Section className="flex items-start sm:items-center justify-center min-h-[100vh] w-full backdrop-blur-sm my-6">
             <Container className="flex flex-col gap-6">
-                <h1 className="!mb-0 text-5xl sm:text-6xl font-semibold" onClick={() => router.push('/dashboard')}>
+                <h1 className="!mb-0 text-5xl sm:text-6xl font-semibold hover:cursor-pointer" onClick={() => router.push('/dashboard')}>
                     Automatic setup
                 </h1>
                 <p className="text-md sm:text-lg text-muted-foreground">
