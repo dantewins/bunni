@@ -19,16 +19,7 @@ const nextConfig: NextConfig = {
       },
     ],
     dangerouslyAllowSVG: true,
-  },
-  "crons": [
-    {
-      "path": "/cron/multilink",
-      "schedule": "*/5 * * * *",
-      "headers": {
-        "Authorization": "Bearer ${CRON_SECRET}"
-      }
-    }
-  ]
+  }
 };
 
 export default nextConfig;
