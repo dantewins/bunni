@@ -82,7 +82,7 @@ async function linkCanvas(userId: string): Promise<number> {
 
     if (!user) throw new Error(`User not found: ${userId}`);
     if (!user.notion) throw new Error(`Notion not connected for user ${userId}`);
-    if (!user.canvas) throw new Error(`Canvas not connected for user ${userId}`);
+    // if (!user.canvas) throw new Error(`Canvas not connected for user ${userId}`);
 
     const assignmentsDbId = user.notion.calendarDatabaseId;
     if (!assignmentsDbId) {
