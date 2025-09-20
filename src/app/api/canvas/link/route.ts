@@ -19,9 +19,9 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        const numberSynced = await linkCanvas(userId);
+        const amountSynced = await linkCanvas(userId);
         
-        return NextResponse.json({ ok: true, numberSynced }, { status: 200 });
+        return NextResponse.json({ ok: true, amountSynced }, { status: 200 });
     } catch (err: any) {
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
