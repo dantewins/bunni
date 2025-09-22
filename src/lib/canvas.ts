@@ -119,7 +119,7 @@ async function linkCanvas(userId: string): Promise<number> {
                 Description: ${descText}
                 Due at: ${ass.due_at || "no due date"}
                 {
-                    "type": "assignment or assessment (Progress checks are assignments)",
+                    "type": "strictly return either 'assignment' or 'assessment' (Progress checks are assignments)",
                     "name": "Nicely formatted name (e.g., 'Point of View Notes', 'HW #7')"
                 }
             `;
@@ -146,10 +146,9 @@ async function linkCanvas(userId: string): Promise<number> {
             });
 
             if (existing.length === 0) {
-                // CREATE
                 await createNotionObject(token, assignmentsDbId, name, {
                     "Due Date": dueDateProp,
-                    Done: { checkbox: false }, // unfinished
+                    Done: { checkbox: false },
                     Description: { rich_text: descriptionContent },
                     Subject: subjectRelation,
                     Id: { number: full.id },
