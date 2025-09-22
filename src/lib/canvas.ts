@@ -211,7 +211,6 @@ async function linkCanvas(userId: string): Promise<number> {
                     method: "PATCH",
                     body: JSON.stringify({ properties: updates }),
                 });
-                amountSynced++;
             }
         };
 
