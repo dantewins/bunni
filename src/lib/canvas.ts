@@ -74,10 +74,7 @@ async function getAllCanvas(userId: string, path: string, params: string = '') {
 async function linkCanvas(userId: string): Promise<number> {
     const user = await prisma.user.findUnique({
         where: { id: userId },
-        include: {
-            notion: true,
-            canvas: true,
-        },
+        include: { notion: true, canvas: true },
     });
 
     if (!user) throw new Error(`User not found: ${userId}`);
@@ -90,76 +87,49 @@ async function linkCanvas(userId: string): Promise<number> {
     }
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
     let amountSynced = 0;
 
     await withValidNotionToken(userId, async (token) => {
         const courses = await getAllCanvas(userId, "/courses", "enrollment_state=active");
         const courseMap = new Map(courses.map((c: any) => [c.id, c.name]));
-
         const plannerItems = await getAllCanvas(userId, "/planner/items");
 
-        const filteredByPlannerOverride = plannerItems.filter((item: any) =>
-            !item.planner_override || item.planner_override.marked_complete === false
-        );
-
-        const finalFilteredItems = filteredByPlannerOverride.filter(
-            (item: any) => item.submissions && item.submissions.submitted === false && item.plannable_type === "assignment"
-        );
-
-        const unfinishedIds = new Set(finalFilteredItems.map((item: any) => item.plannable_id));
+        const unfinished = plannerItems
+            .filter((it: any) => (!it.planner_override || it.planner_override.marked_complete === false))
+            .filter((it: any) => it.submissions?.submitted === false && it.plannable_type === "assignment");
 
         const subjectsDb = await fetchNotionDb(token, "Subjects");
         if (!subjectsDb) throw new Error("Invalid Notion setup: 'Subjects' database not found");
 
-        for (const item of finalFilteredItems) {
-            const ass = item.plannable;
+        const baseURL = await fetchCanvasFromPrisma();
+
+        const upsertAssignment = async (item: any) => {
+            const ass = { ...item.plannable, id: item.plannable_id, html_url: item.html_url };
             const courseName = courseMap.get(item.course_id) || "Unknown";
 
-            ass.id = item.plannable_id;
-            ass.html_url = item.html_url;
+            const full = await canvasFetch(userId, `/courses/${item.course_id}/assignments/${item.plannable_id}`);
 
-            const fullPlannable = await canvasFetch(userId, `/courses/${item.course_id}/assignments/${item.plannable_id}`);
-
-            const existing = await getAllNotionPages(token, assignmentsDbId, {
-                property: "Id",
-                number: { equals: fullPlannable.id },
-            });
-            if (existing.length > 0) continue;
-
-            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-            const descText = fullPlannable.description ? fullPlannable.description.replace(/<[^>]*>?/gm, "") : "";
-
+            const descText = full.description ? full.description.replace(/<[^>]*>?/gm, "") : "";
             const prompt = `
                 Analyze the following assignment and return ONLY JSON:
-
                 Course: ${courseName}
-                Name: ${fullPlannable.name || fullPlannable.title || ass.name || ass.title}
+                Name: ${full.name || full.title || ass.name || ass.title}
                 Description: ${descText}
                 Due at: ${ass.due_at || "no due date"}
-
                 {
-                "type": "assignment or assessment (Progress checks are assignments)",
-                "name": "Nicely formatted name (e.g., 'Point of View Notes', 'HW #7')"
+                    "type": "assignment or assessment (Progress checks are assignments)",
+                    "name": "Nicely formatted name (e.g., 'Point of View Notes', 'HW #7')"
                 }
             `;
+            const ai = await model.generateContent(prompt);
+            const aiText = ai.response.text().trim();
+            const jsonStr = aiText.replace(/^```json\s*|\s*```$/g, "");
+            const { type, name } = JSON.parse(jsonStr);
 
-            const result = await model.generateContent(prompt);
-            const aiText = result.response.text().trim();
-
-            let aiData: any;
-            try {
-                const jsonStr = aiText.replace(/^```json\s*|\s*```$/g, "");
-                aiData = JSON.parse(jsonStr);
-            } catch {
-                throw new Error("Failed to parse AI response from Gemini");
-            }
-
-            const { type, name } = aiData;
             const dueDateProp = ass.due_at ? { date: { start: ass.due_at } } : { date: null };
-
-            const baseURL = await fetchCanvasFromPrisma();
             const newURL = baseURL + ass.html_url;
-
             const descriptionContent = [
                 { type: "text", text: { content: "Canvas link", link: { url: newURL } } },
             ];
@@ -168,39 +138,86 @@ async function linkCanvas(userId: string): Promise<number> {
                 property: "Canvas ID",
                 number: { equals: item.course_id },
             });
+            const subjectRelation = subjectPages[0]?.id ? { relation: [{ id: subjectPages[0].id }] } : undefined;
 
-            await createNotionObject(token, assignmentsDbId, name, {
-                "Due Date": dueDateProp,
-                Done: { checkbox: false },
-                Description: { rich_text: descriptionContent },
-                Subject: subjectPages[0]?.id ? { relation: [{ id: subjectPages[0].id }] } : undefined,
-                Id: { number: fullPlannable.id },
-                Type: { select: { name: type } },
+            const existing = await getAllNotionPages(token, assignmentsDbId, {
+                property: "Id",
+                number: { equals: full.id },
             });
 
-            amountSynced++;
-        }
+            if (existing.length === 0) {
+                // CREATE
+                await createNotionObject(token, assignmentsDbId, name, {
+                    "Due Date": dueDateProp,
+                    Done: { checkbox: false }, // unfinished
+                    Description: { rich_text: descriptionContent },
+                    Subject: subjectRelation,
+                    Id: { number: full.id },
+                    Type: { select: { name: type } },
+                });
+                amountSynced++;
+                return;
+            }
 
-        const uncheckedAssignments = await getAllNotionPages(token, assignmentsDbId, {
-            property: "Done",
-            checkbox: { equals: false },
-        });
+            const page = existing[0];
+            const updates: Record<string, any> = {};
+            let needUpdate = false;
 
-        for (const page of uncheckedAssignments) {
-            const assignmentId = page.properties.Id?.number;
-            if (assignmentId && !unfinishedIds.has(assignmentId)) {
-                await notionFetch(token, `/pages/${dash(page.id)}`, {
+            const currentName = page.properties.Name?.title?.[0]?.text?.content || "";
+            if (currentName !== name) {
+                updates.Name = { title: [{ type: "text", text: { content: name } }] };
+                needUpdate = true;
+            }
+
+            const currentDue = page.properties["Due Date"]?.date?.start || null;
+            const newDue = ass.due_at || null;
+            if (currentDue !== newDue) {
+                updates["Due Date"] = dueDateProp;
+                needUpdate = true;
+            }
+
+            const currentType = page.properties.Type?.select?.name || "";
+            if (currentType !== type) {
+                updates.Type = { select: { name: type } };
+                needUpdate = true;
+            }
+
+            const currentSubjectId = page.properties.Subject?.relation?.[0]?.id || null;
+            const newSubjectId = subjectPages[0]?.id || null;
+            if (currentSubjectId !== newSubjectId) {
+                updates.Subject = subjectRelation;
+                needUpdate = true;
+            }
+
+            const currentDescFirst = page.properties.Description?.rich_text?.[0]?.text?.content || "";
+            const currentDescLink = page.properties.Description?.rich_text?.[0]?.text?.link?.url || "";
+            if (currentDescFirst !== "Canvas link" || currentDescLink !== newURL) {
+                updates.Description = { rich_text: descriptionContent };
+                needUpdate = true;
+            }
+
+            const currentDone = page.properties.Done?.checkbox ?? false;
+            if (currentDone !== false) {
+                updates.Done = { checkbox: false };
+                needUpdate = true;
+            }
+
+            if (needUpdate) {
+                await notionFetch(token, `/pages/${page.id}`, {
                     method: "PATCH",
-                    body: JSON.stringify({
-                        properties: { Done: { checkbox: true } },
-                    }),
+                    body: JSON.stringify({ properties: updates }),
                 });
                 amountSynced++;
             }
+        };
+
+        for (const item of unfinished) {
+            await upsertAssignment(item);
         }
     });
 
     return amountSynced;
 }
+
 
 export { fetchCanvasFromPrisma, canvasFetch, getAllCanvas, linkCanvas };
