@@ -100,6 +100,8 @@ async function linkCanvas(userId: string): Promise<number> {
             .filter((it: any) => (!it.planner_override || it.planner_override.marked_complete === false))
             .filter((it: any) => it.submissions?.submitted === false && it.plannable_type === "assignment");
 
+        const unfinishedIds = new Set<number>(unfinished.map((it: any) => it.plannable_id));
+
         const subjectsDb = await fetchNotionDb(token, "Subjects");
         if (!subjectsDb) throw new Error("Invalid Notion setup: 'Subjects' database not found");
 
@@ -109,7 +111,10 @@ async function linkCanvas(userId: string): Promise<number> {
             const ass = { ...item.plannable, id: item.plannable_id, html_url: item.html_url };
             const courseName = courseMap.get(item.course_id) || "Unknown";
 
-            const full = await canvasFetch(userId, `/courses/${item.course_id}/assignments/${item.plannable_id}`);
+            const full = await canvasFetch(
+                userId,
+                `/courses/${item.course_id}/assignments/${item.plannable_id}`
+            );
 
             const descText = full.description ? full.description.replace(/<[^>]*>?/gm, "") : "";
             const prompt = `
@@ -212,6 +217,25 @@ async function linkCanvas(userId: string): Promise<number> {
 
         for (const item of unfinished) {
             await upsertAssignment(item);
+        }
+
+        const openPages = await getAllNotionPages(token, assignmentsDbId, {
+            property: "Done",
+            checkbox: { equals: false },
+        });
+
+        for (const page of openPages) {
+            const id = page.properties.Id?.number;
+            if (!id) continue;
+            if (!unfinishedIds.has(id)) {
+                await notionFetch(token, `/pages/${page.id}`, {
+                    method: "PATCH",
+                    body: JSON.stringify({
+                        properties: { Done: { checkbox: true } },
+                    }),
+                });
+                amountSynced++;
+            }
         }
     });
 
