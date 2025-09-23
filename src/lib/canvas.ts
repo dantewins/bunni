@@ -125,7 +125,7 @@ async function linkCanvas(userId: string): Promise<number> {
                 Due at: ${ass.due_at || "no due date"}
                 {
                     "type": "strictly return either 'assignment' or 'assessment' (Progress checks are assignments)",
-                    "name": "Nicely formatted name (e.g., 'Point of View Notes', 'HW #7')"
+                    "name": "Nicely formatted name (e.g., 'Point of View Notes', 'HW #7', 'Unit 2 Progress Check MCQ')"
                 }
             `;
             const ai = await model.generateContent(prompt);
