@@ -10,6 +10,7 @@ export async function middleware(req: NextRequest) {
 
     if (
         pathname === "/" ||
+        pathname.startsWith("/api/cron/multilink") ||
         pathname.startsWith("/api/notion/callback") ||
         pathname.startsWith("/_next") ||
         pathname.startsWith("/favicon")
