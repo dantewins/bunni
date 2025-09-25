@@ -10,7 +10,6 @@ export async function POST(req: NextRequest) {
 
     const users = await prisma.user.findMany({
         where: {
-            hasCompletedSetup: true,
             notion: { isNot: null },
         },
         select: { id: true },
