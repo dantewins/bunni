@@ -1,8 +1,9 @@
 {
-    "crons": [
-        {
-            "path": "/api/cron/multilink",
-            "schedule": "0 22 * * *"
-        }
-    ]
+  "crons": [
+    {
+      "path": "/api/cron/multilink",
+      "schedule": "5 22 * * *",
+      "timezone": "America/New_York"
+    }
+  ]
 }
