@@ -12,7 +12,6 @@ export async function POST(req: NextRequest) {
         where: {
             hasCompletedSetup: true,
             notion: { isNot: null },
-            canvas: { isNot: null },
         },
         select: { id: true },
     });
