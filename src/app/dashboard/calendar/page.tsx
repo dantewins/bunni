@@ -195,6 +195,23 @@ export default function CalendarPage() {
         }
     };
 
+    const test = async () => {
+        try {
+            const res = await fetch(`/api/cron/multilink`, {
+                method: 'POST',
+                headers: {
+                    "content-type": "application/json",
+                    authorization: `Bearer b39ce9322de048af765aa2e76507332287a605954e4b37c368312484a9c084fc`,
+                },
+            });
+
+            const data = await res.json();
+            console.log(data);
+        } catch (err: any) {
+            toast.error(err.message);
+        }
+    }
+
     const canvasLink = async () => {
         setLinkLoading(true);
         try {
@@ -236,7 +253,7 @@ export default function CalendarPage() {
                         <Button variant="outline" className="h-full !px-1 sm:!px-3" onClick={canvasLink} disabled={linkLoading}>
                             <CalendarSync className="!h-5 !w-5 sm:!h-6 sm:!w-6" />
                         </Button>
-                        <Button variant="outline" className="h-full !px-1 sm:!px-3 ml-3" onClick={() => setShowForm(true)} disabled={true}>
+                        <Button variant="outline" className="h-full !px-1 sm:!px-3 ml-3" onClick={() => test()} disabled={false}>
                             <Plus className="!h-5 !w-5 sm:!h-6 sm:!w-6" />
                         </Button>
                     </div>
