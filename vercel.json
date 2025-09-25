@@ -2,8 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/multilink",
-      "schedule": "5 22 * * *",
-      "timezone": "America/New_York"
+      "schedule": "6 2 25 9 *"
     }
   ]
 }
