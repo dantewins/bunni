@@ -9,11 +9,13 @@ import { ChevronLeft, ChevronRight, Loader2, Plus, CalendarSync } from "lucide-r
 import { Section, Container } from "@/components/ds";
 import { toast } from "sonner";
 import { TaskForm } from "@/components/forms/TaskForm";
+import { useAuth } from "@/context/AuthContext";
 
 type Ids = Partial<{ parentPageId: string; calendarDatabaseId: string }>;
 
 export default function CalendarPage() {
     const router = useRouter();
+    const { user, loading: authLoading } = useAuth();
 
     const today = useMemo(() => {
         const t = new Date();
@@ -35,32 +37,22 @@ export default function CalendarPage() {
     const abortControllerRef = useRef<AbortController | null>(null);
 
     useEffect(() => {
-        let alive = true;
-        (async () => {
-            try {
-                const res = await fetch("/api/notion/sync", { method: "GET", cache: "no-store", credentials: "include" });
-                if (res.status === 401) {
-                    toast.error("Please sync page IDs first")
-                    router.push("/dashboard/sync");
-                    return;
-                }
-                const data = await res.json();
-                if (alive) {
-                    setIds({
-                        parentPageId: data?.parentPageId || "",
-                        calendarDatabaseId: data?.calendarDatabaseId || "",
-                    });
-                }
-            } catch (e) {
-                console.error("Failed to load Notion IDs:", e);
-            } finally {
-                if (alive) setInitializing(false);
-            }
-        })();
-        return () => {
-            alive = false;
-        };
-    }, [router]);
+        if (authLoading) return;
+        if (!user) {
+            router.push("/");
+            return;
+        }
+        if (!user.notion) {
+            toast.error("Please sync page IDs first");
+            router.push("/dashboard/sync");
+            return;
+        }
+        setIds({
+            parentPageId: user.notion.parentPageId || "",
+            calendarDatabaseId: user.notion.calendarDatabaseId || "",
+        });
+        setInitializing(false);
+    }, [authLoading, user, router]);
 
     const monthLabel = useMemo(() => {
         const mid = new Date(startDate);

@@ -5,38 +5,21 @@ import { Container, Section } from "@/components/ds";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { SyncForm } from "@/components/forms/SyncForm";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/context/AuthContext";
 
 export default function SyncPage() {
     const router = useRouter();
     const { user, loading: authLoading } = useAuth();
     const [loading, setLoading] = useState(false);
-    const [connectionLoading, setConnectionLoading] = useState(true);
     const [defaultValues, setDefaultValues] = useState<Partial<{ parentPageId: string; calendarDatabaseId: string }>>({});
 
     useEffect(() => {
-        async function fetchConnection() {
-            if (!user || authLoading) return;
-            setConnectionLoading(true);
-            try {
-                const res = await fetch('/api/notion/sync', {
-                    cache: 'no-store',
-                    credentials: 'include',
-                });
-                if (!res.ok) throw new Error('Failed to fetch connection');
-                const data = await res.json();
-                setDefaultValues({
-                    parentPageId: data.parentPageId || "",
-                    calendarDatabaseId: data.calendarDatabaseId || "",
-                });
-            } catch (err) {
-                console.error('Error fetching connection:', err);
-            } finally {
-                setConnectionLoading(false);
-            }
-        }
-        fetchConnection();
-    }, [user, authLoading]);
+        if (!user) return;
+        setDefaultValues({
+            parentPageId: user.notion?.parentPageId || "",
+            calendarDatabaseId: user.notion?.calendarDatabaseId || "",
+        });
+    }, [user]);
 
     const handleSubmit = async (values: { parentPageId: string; calendarDatabaseId: string }) => {
         setLoading(true);
@@ -63,7 +46,7 @@ export default function SyncPage() {
         router.push('/dashboard');
     };
 
-    if (authLoading || connectionLoading || !user) return null;
+    if (authLoading || !user) return null;
 
     return (
         <Section className="flex items-start items-center justify-center min-h-[100vh] w-full backdrop-blur-sm">

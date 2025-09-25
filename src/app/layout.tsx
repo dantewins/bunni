@@ -3,6 +3,9 @@ import { Manrope } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
+import { AuthProvider } from "@/context/AuthContext";
+import { getCurrentUser } from "@/lib/auth";
+
 const manrope = Manrope({
   weight: ["200", "300", "400", "500", "600", "700", "800"],
   subsets: ["latin"],
@@ -10,7 +13,8 @@ const manrope = Manrope({
 
 export const metadata: Metadata = {
   title: "Bunni",
-  description: "Bunni seamlessly connects to your Notion workspace and automatically pulls in assignments, assessments, and deadlines into a clean weekly and monthly calendar — highlighting today’s events so you never miss a deadline.",
+  description:
+    "Bunni seamlessly connects to your Notion workspace and automatically pulls in assignments, assessments, and deadlines into a clean weekly and monthly calendar — highlighting today’s events so you never miss a deadline.",
   icons: {
     icon: "/logo.svg",
     shortcut: "/logo.svg",
@@ -18,19 +22,19 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const user = await getCurrentUser();
+
   return (
     <html lang="en">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       </head>
       <body className={`${manrope.className} antialiased`}>
-        {children}
-        <Toaster position="top-center" />
+        <AuthProvider initialUser={user}>
+          {children}
+          <Toaster position="top-center" />
+        </AuthProvider>
       </body>
     </html>
   );

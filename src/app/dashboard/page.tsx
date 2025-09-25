@@ -1,29 +1,20 @@
 "use client"
 
+import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Container, Section } from "@/components/ds"
-import { toast } from "sonner"
-import { useAuth } from "@/hooks/useAuth"
+import { useAuth } from "@/context/AuthContext"
 
 export default function DashboardPage() {
-    const router = useRouter()
-    const { user, loading } = useAuth()
+    const router = useRouter();
+    const { user, loading, signOut } = useAuth();
 
-    const signOut = async () => {
-        try {
-            await fetch("/api/auth/logout", { method: "POST" })
-            router.push("/")
-        } catch (err: any) {
-            toast.error(err?.message || "Could not sign out")
-        }
-    }
+    useEffect(() => {
+        if (!loading && !user) router.replace("/");
+    }, [loading, user, router]);
 
-    if (loading) return null
-    if (!user) {
-        router.push("/")
-        return null
-    }
+    if (loading || !user) return null;
 
     const displayName = user.name || "there"
 

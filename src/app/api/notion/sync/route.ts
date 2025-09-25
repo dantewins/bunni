@@ -3,27 +3,27 @@ import { prisma } from '@/lib/prisma';
 import { notionFetch, withValidNotionToken, undash, dash } from '@/lib/notion';
 import { getUserId } from '@/lib/auth';
 
-export async function GET(request: NextRequest) {
-    try {
-        const userId = await getUserId(request);
+// export async function GET(request: NextRequest) {
+//     try {
+//         const userId = await getUserId(request);
 
-        if (!userId) throw new Error('Unauthorized');
+//         if (!userId) throw new Error('Unauthorized');
 
-        const connection = await prisma.notionConnection.findUnique({
-            where: { userId },
-            select: { parentPageId: true, calendarDatabaseId: true },
-        });
+//         const connection = await prisma.notionConnection.findUnique({
+//             where: { userId },
+//             select: { parentPageId: true, calendarDatabaseId: true },
+//         });
 
-        if (!connection?.parentPageId?.trim() || !connection?.calendarDatabaseId?.trim()) return NextResponse.json({}, { status: 401 });
+//         if (!connection?.parentPageId?.trim() || !connection?.calendarDatabaseId?.trim()) return NextResponse.json({}, { status: 401 });
 
-        return NextResponse.json({
-            parentPageId: connection?.parentPageId || '',
-            calendarDatabaseId: connection?.calendarDatabaseId || '',
-        });
-    } catch (err: any) {
-        return NextResponse.json({ error: err.message }, { status: 500 });
-    }
-}
+//         return NextResponse.json({
+//             parentPageId: connection?.parentPageId || '',
+//             calendarDatabaseId: connection?.calendarDatabaseId || '',
+//         });
+//     } catch (err: any) {
+//         return NextResponse.json({ error: err.message }, { status: 500 });
+//     }
+// }
 
 export async function POST(request: NextRequest) {
     try {

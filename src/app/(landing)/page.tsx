@@ -8,7 +8,7 @@ import CTA from '@/components/landing/cta'
 import Footer from '@/components/landing/footer'
 import { ArrowDown } from 'lucide-react'
 
-import { useAuth } from '@/hooks/useAuth'
+import { useAuth } from '@/context/AuthContext'
 
 export default function LandingPage() {
     const [visible, setVisible] = useState(true)
