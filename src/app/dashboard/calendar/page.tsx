@@ -206,6 +206,7 @@ export default function CalendarPage() {
             });
 
             const data = await res.json();
+            toast.success("cron job work");
             console.log(data);
         } catch (err: any) {
             toast.error(err.message);
