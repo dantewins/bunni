@@ -124,6 +124,7 @@
 
 .toaster [data-sonner-toast] {
   box-shadow: none !important;
+  border-radius: none !important;
 }
 
 *::-webkit-scrollbar {
