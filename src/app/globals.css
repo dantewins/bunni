@@ -122,6 +122,10 @@
   }
 }
 
+.toaster [data-sonner-toast] {
+  box-shadow: none !important;
+}
+
 *::-webkit-scrollbar {
   display: none;
 }

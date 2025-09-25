@@ -1,8 +1,8 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/multilink",
-      "schedule": "6 2 25 9 *"
-    }
-  ]
+    "crons": [
+        {
+            "path": "/api/cron/multilink",
+            "schedule": "0 22 * * *"
+        }
+    ]
 }
