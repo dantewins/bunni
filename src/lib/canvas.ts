@@ -125,7 +125,7 @@ async function linkCanvas(userId: string): Promise<number> {
                 Due at: ${ass.due_at || "no due date"}
                 {
                     "type": "strictly return either 'assignment' or 'assessment' (Progress checks are assignments)",
-                    "name": "Nicely formatted name, meaning add spaces where appropriate, remove dates in names, and capitalize names as you would in a book title: the beginning of every word excluding articles, short conjunctions, and short prepositions (e.g., 'Point of View Notes', 'HW #10 6.13 Improper Integrals', 'Unit 2 Progress Check MCQ', 'AP Video 3.1 - 3.3 Summaries + Quiz')"
+                    "name": "Nicely formatted name, meaning add spaces where appropriate (in between every word or symbol), remove dates in names, and capitalize names as you would in a book title: the beginning of every word excluding articles, short conjunctions, and short prepositions (e.g., 'Point of View Notes', 'HW #10 6.13 Improper Integrals', 'Unit 2 Progress Check MCQ', 'AP Video 3.1 - 3.3 Summaries + Quiz')"
                 }
             `;
             const ai = await model.generateContent(prompt);
