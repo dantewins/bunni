@@ -2,7 +2,7 @@
     "crons": [
         {
             "path": "/api/cron/multilink",
-            "schedule": "0 22 * * *"
+            "schedule": "0 17 * * *"
         }
     ]
 }
