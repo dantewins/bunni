@@ -190,7 +190,7 @@ export default function CalendarPage() {
     const test = async () => {
         try {
             const res = await fetch(`/api/cron/multilink`, {
-                method: 'POST',
+                method: 'GET',
                 headers: {
                     "content-type": "application/json",
                     authorization: `Bearer b39ce9322de048af765aa2e76507332287a605954e4b37c368312484a9c084fc`,
