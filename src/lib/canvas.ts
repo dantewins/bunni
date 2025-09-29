@@ -87,7 +87,10 @@ async function linkCanvas(userId: string): Promise<number> {
     }
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({
+        model: "gemini-1.5-flash",
+        generationConfig: { temperature: 0 }
+    });
 
     let amountSynced = 0;
 
@@ -155,7 +158,7 @@ async function linkCanvas(userId: string): Promise<number> {
                     ${inputString}
                     {
                         "type": "strictly return either 'assignment' or 'assessment' (Progress checks are assignments)",
-                        "name": "Nicely formatted name, meaning add spaces where appropriate (in between every word or symbol), remove dates in names, and capitalize names as you would in a book title: the beginning of every word excluding articles, short conjunctions, and short prepositions (e.g., 'Point of View Notes', 'HW #10 6.13 Improper Integrals', 'Unit 2 Progress Check MCQ', 'AP Video 3.1 - 3.3 Summaries + Quiz')"
+                        "name": "Nicely formatted name, meaning add spaces where appropriate (in between every word or symbol), remove dates in names, and capitalize names as you would in a book title: the beginning of every word excluding articles, short conjunctions, and short prepositions (unless they are the first word). If the name is too generic (e.g. 'Math'), prepend the course name. If the name is too long (over 50 characters), shorten it while keeping important information. Remove any duplicate information that may be in the course name and assignment name."
                     }
                 `;
                 const ai = await model.generateContent(prompt);
@@ -197,14 +200,8 @@ async function linkCanvas(userId: string): Promise<number> {
                 needUpdate = true;
             }
 
-            const currentType = page.properties.Type?.select?.name || "";
-            if (needAI && currentType !== type) {
+            if (needAI) {
                 updates.Type = { select: { name: type } };
-                needUpdate = true;
-            }
-
-            const currentName = page.properties.Name?.title?.[0]?.text?.content || "";
-            if (needAI && currentName !== name) {
                 updates.Name = { title: [{ text: { content: name! } }] };
                 needUpdate = true;
             }
