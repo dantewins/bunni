@@ -117,27 +117,14 @@ async function linkCanvas(userId: string): Promise<number> {
             );
 
             const descText = full.description ? full.description.replace(/<[^>]*>?/gm, "") : "";
-            const prompt = `
-                Analyze the following assignment and return ONLY JSON:
+            const inputString = `
                 Course: ${courseName}
                 Name: ${full.name || full.title || ass.name || ass.title}
                 Description: ${descText}
                 Due at: ${ass.due_at || "no due date"}
-                {
-                    "type": "strictly return either 'assignment' or 'assessment' (Progress checks are assignments)",
-                    "name": "Nicely formatted name, meaning add spaces where appropriate (in between every word or symbol), remove dates in names, and capitalize names as you would in a book title: the beginning of every word excluding articles, short conjunctions, and short prepositions (e.g., 'Point of View Notes', 'HW #10 6.13 Improper Integrals', 'Unit 2 Progress Check MCQ', 'AP Video 3.1 - 3.3 Summaries + Quiz')"
-                }
-            `;
-            const ai = await model.generateContent(prompt);
-            const aiText = ai.response.text().trim();
-            const jsonStr = aiText.replace(/^```json\s*|\s*```$/g, "");
-            const { type, name } = JSON.parse(jsonStr);
-
-            const dueDateProp = ass.due_at ? { date: { start: ass.due_at } } : { date: null };
-            const newURL = baseURL + ass.html_url;
-            const descriptionContent = [
-                { type: "text", text: { content: "Canvas link", link: { url: newURL } } },
-            ];
+            `.trim();
+            const crypto = await import('crypto');
+            const hash = crypto.createHash('md5').update(inputString).digest('hex');
 
             const subjectPages = await getAllNotionPages(token, subjectsDb.id, {
                 property: "Canvas ID",
@@ -150,14 +137,50 @@ async function linkCanvas(userId: string): Promise<number> {
                 number: { equals: full.id },
             });
 
+            let type: string | undefined;
+            let name: string | undefined;
+            let needAI = true;
+
+            if (existing.length > 0) {
+                const page = existing[0];
+                const currentHash = page.properties.Hash?.rich_text?.[0]?.text?.content || "";
+                if (currentHash === hash) {
+                    needAI = false;
+                }
+            }
+
+            if (needAI) {
+                const prompt = `
+                    Analyze the following assignment and return ONLY JSON:
+                    ${inputString}
+                    {
+                        "type": "strictly return either 'assignment' or 'assessment' (Progress checks are assignments)",
+                        "name": "Nicely formatted name, meaning add spaces where appropriate (in between every word or symbol), remove dates in names, and capitalize names as you would in a book title: the beginning of every word excluding articles, short conjunctions, and short prepositions (e.g., 'Point of View Notes', 'HW #10 6.13 Improper Integrals', 'Unit 2 Progress Check MCQ', 'AP Video 3.1 - 3.3 Summaries + Quiz')"
+                    }
+                `;
+                const ai = await model.generateContent(prompt);
+                const aiText = ai.response.text().trim();
+                const jsonStr = aiText.replace(/^```json\s*|\s*```$/g, "");
+                const parsed = JSON.parse(jsonStr);
+                type = parsed.type;
+                name = parsed.name;
+            }
+
+            const dueDateProp = ass.due_at ? { date: { start: ass.due_at } } : { date: null };
+            const newURL = baseURL + ass.html_url;
+            const descriptionContent = [
+                { type: "text", text: { content: "Canvas link", link: { url: newURL } } },
+            ];
+
             if (existing.length === 0) {
-                await createNotionObject(token, assignmentsDbId, name, {
+                await createNotionObject(token, assignmentsDbId, name!, {
                     "Due Date": dueDateProp,
                     Done: { checkbox: false },
                     Description: { rich_text: descriptionContent },
                     Subject: subjectRelation,
                     Id: { number: full.id },
-                    Type: { select: { name: type } },
+                    Type: { select: { name: type! } },
+                    Hash: { rich_text: [{ type: "text", text: { content: hash } }] },
                 });
                 amountSynced++;
                 return;
@@ -167,12 +190,6 @@ async function linkCanvas(userId: string): Promise<number> {
             const updates: Record<string, any> = {};
             let needUpdate = false;
 
-            const currentName = page.properties.Name?.title?.[0]?.text?.content || "";
-            if (currentName !== name) {
-                updates.Name = { title: [{ type: "text", text: { content: name } }] };
-                needUpdate = true;
-            }
-
             const currentDue = page.properties["Due Date"]?.date?.start || null;
             const newDue = ass.due_at || null;
             if (currentDue !== newDue) {
@@ -181,8 +198,14 @@ async function linkCanvas(userId: string): Promise<number> {
             }
 
             const currentType = page.properties.Type?.select?.name || "";
-            if (currentType !== type) {
+            if (needAI && currentType !== type) {
                 updates.Type = { select: { name: type } };
+                needUpdate = true;
+            }
+
+            const currentName = page.properties.Name?.title?.[0]?.text?.content || "";
+            if (needAI && currentName !== name) {
+                updates.Name = { title: [{ text: { content: name! } }] };
                 needUpdate = true;
             }
 
@@ -203,6 +226,11 @@ async function linkCanvas(userId: string): Promise<number> {
             const currentDone = page.properties.Done?.checkbox ?? false;
             if (currentDone !== false) {
                 updates.Done = { checkbox: false };
+                needUpdate = true;
+            }
+
+            if (needAI) {
+                updates.Hash = { rich_text: [{ type: "text", text: { content: hash } }] };
                 needUpdate = true;
             }
 
@@ -240,6 +268,5 @@ async function linkCanvas(userId: string): Promise<number> {
 
     return amountSynced;
 }
-
 
 export { fetchCanvasFromPrisma, canvasFetch, getAllCanvas, linkCanvas };
