@@ -103,7 +103,7 @@ async function linkCanvas(userId: string): Promise<number> {
                 const dateProperty = new Date(item.plannable_date);
                 const now = new Date();
                 const sixMonthsAgo = new Date();
-                sixMonthsAgo.setMonth(now.getMonth() - 6);
+                sixMonthsAgo.setMonth((now.getMonth() + 1) - 6);
 
                 return !isNaN(dateProperty.getTime()) && dateProperty >= sixMonthsAgo && dateProperty <= now;
             });
