@@ -98,7 +98,15 @@ async function linkCanvas(userId: string): Promise<number> {
 
         const unfinished = plannerItems
             .filter((it: any) => (!it.planner_override || it.planner_override.marked_complete === false))
-            .filter((it: any) => it.submissions?.submitted === false && it.plannable_type === "assignment");
+            .filter((it: any) => it.submissions?.submitted === false && it.plannable_type === "assignment")
+            .filter(item => {
+                const dateProperty = new Date(item.plannable_date);
+                const now = new Date();
+                const sixMonthsAgo = new Date();
+                sixMonthsAgo.setMonth(now.getMonth() - 6);
+
+                return !isNaN(dateProperty.getTime()) && dateProperty >= sixMonthsAgo && dateProperty <= now;
+            });
 
         console.log(unfinished)
 
