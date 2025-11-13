@@ -100,6 +100,8 @@ async function linkCanvas(userId: string): Promise<number> {
             .filter((it: any) => (!it.planner_override || it.planner_override.marked_complete === false))
             .filter((it: any) => it.submissions?.submitted === false && it.plannable_type === "assignment");
 
+        console.log(unfinished)
+
         const unfinishedIds = new Set<number>(unfinished.map((it: any) => it.plannable_id));
 
         const subjectsDb = await fetchNotionDb(token, "Subjects");
