@@ -100,12 +100,23 @@ async function linkCanvas(userId: string): Promise<number> {
             .filter((it: any) => (!it.planner_override || it.planner_override.marked_complete === false))
             .filter((it: any) => it.submissions?.submitted === false && it.plannable_type === "assignment")
             .filter(item => {
-                const dateProperty = new Date(item.plannable_date);
-                const now = new Date();
-                const sixMonthsAgo = new Date();
-                sixMonthsAgo.setMonth((now.getMonth() + 1) - 6);
+                const plannableDate = new Date(item.plannable_date);
 
-                return !isNaN(dateProperty.getTime()) && dateProperty >= sixMonthsAgo && dateProperty <= now;
+                // Calculate 'now' as the current date's month + 1
+                let upperDateLimit = new Date();
+                upperDateLimit.setMonth(upperDateLimit.getMonth() + 1);
+                // Ensure we compare to the end of that month, if necessary for logic (though end of day is typical)
+
+                // Calculate the start date of the range (6 months prior to the upper limit)
+                // This correctly goes back six full months from the upper limit date
+                const lowerDateLimit = new Date(upperDateLimit);
+                lowerDateLimit.setMonth(lowerDateLimit.getMonth() - 6);
+
+                // Return true if the date is valid, greater than or equal to the lower limit,
+                // and less than or equal to the upper limit
+                return !isNaN(plannableDate.getTime()) &&
+                    plannableDate >= lowerDateLimit &&
+                    plannableDate <= upperDateLimit;
             });
 
         console.log(unfinished)
