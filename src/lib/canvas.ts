@@ -87,7 +87,7 @@ async function linkCanvas(userId: string): Promise<number> {
     }
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     let amountSynced = 0;
 
@@ -118,8 +118,6 @@ async function linkCanvas(userId: string): Promise<number> {
                     plannableDate >= lowerDateLimit &&
                     plannableDate <= upperDateLimit;
             });
-
-        console.log(unfinished)
 
         const unfinishedIds = new Set<number>(unfinished.map((it: any) => it.plannable_id));
 
